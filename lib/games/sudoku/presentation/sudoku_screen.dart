@@ -651,16 +651,11 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           automaticallyImplyLeading: false,
-          leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
+          leading: wide
+              ? null
+              : BackButton(onPressed: () => context.go(_store.homeRoute)),
           title: wide
-              ? const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.auto_awesome, size: 22),
-                    SizedBox(width: 10),
-                    Text('Sudoku'),
-                  ],
-                )
+              ? null
               : Text(_daily ? 'Sudoku · Thử thách ngày' : 'Sudoku'),
           actions: [
             const ScoreChip(),
@@ -1019,7 +1014,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     final outerW = showStats ? 250.0 : 190.0;
     final avail = c.maxWidth - 40 - outerW * 2 - gap * 2 - 40 - sideW - gap;
     // Ban vuong vua khung: tru tab do kho (~60), hang nut duoi (~80), le.
-    final board = min(avail, c.maxHeight - 250).clamp(300.0, 640.0);
+    final board = min(avail, c.maxHeight - 310).clamp(300.0, 640.0);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
       child: ConstrainedBox(
@@ -1043,6 +1038,8 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            _cardHeader(),
+                            const SizedBox(height: 12),
                             if (!_daily) _levelTabs(g),
                             if (!_daily) const SizedBox(height: 14),
                             _boardStack(g),
@@ -1114,6 +1111,27 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       ],
     ),
   );
+
+  /// Dau the (man rong): nut quay lai + ten game, giong cac game khac.
+  Widget _cardHeader() {
+    final f = FrostStyle.of(context);
+    return Row(
+      children: [
+        BackButton(onPressed: () => context.go(_store.homeRoute)),
+        const SizedBox(width: 10),
+        Icon(Icons.auto_awesome, size: 22, color: f.accent),
+        const SizedBox(width: 8),
+        Text(
+          _daily ? 'Sudoku · Thử thách ngày' : 'Sudoku',
+          style: TextStyle(
+            color: f.ink,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _levelTabs(SudokuGame g) => Row(
     children: [
