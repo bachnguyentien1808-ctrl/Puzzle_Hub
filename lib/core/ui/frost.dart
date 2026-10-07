@@ -186,54 +186,43 @@ class FrostButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final f = FrostStyle.of(context);
-    final accent = primary || selected;
-    final base = tint ?? f.accent;
     final dark = f.ink.computeLuminance() > .5;
-    final fg = accent
-        ? f.onAccent
-        : tint == null
-        ? f.ink
-        : (dark
-              ? Color.lerp(tint, Colors.white, .35)!
-              : Color.lerp(tint, Colors.black, .3)!);
+    final base = tint ?? f.accent;
+    // Nut co mau rieng: to dac mau (chu trang) cho dam, de thay; nut chon /
+    // chinh co them vong trang. Nut khong mau: nen trang, chu dam.
+    final solid = tint != null || primary || selected;
+    final ringed = selected || primary;
+    final fg = solid ? f.onAccent : f.ink;
+    final deep = Color.lerp(base, Colors.black, .28)!;
     return Opacity(
-      opacity: onPressed == null ? (dark ? 0.8 : 0.65) : 1,
+      opacity: onPressed == null ? (dark ? 0.7 : 0.55) : 1,
       child: Material(
         color: Colors.transparent,
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
-            color: accent
-                ? null
-                : tint == null
-                ? f.key
-                : Color.alphaBlend(
-                    tint!.withValues(alpha: dark ? .38 : .16),
-                    f.key,
-                  ),
-            border: !accent && tint != null
-                ? Border.all(
-                    color: tint!.withValues(alpha: dark ? .95 : .5),
-                    width: dark ? 1.7 : 1.3,
-                  )
-                : dark
-                ? Border.all(color: f.border, width: 1.4)
-                : null,
-            gradient: accent
+            color: solid ? null : f.key,
+            gradient: solid
                 ? LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color.lerp(base, Colors.white, .2)!, base],
+                    colors: [Color.lerp(base, Colors.white, .16)!, deep],
                   )
                 : null,
+            border: Border.all(
+              color: ringed
+                  ? Colors.white
+                  : solid
+                  ? deep
+                  : f.border,
+              width: ringed ? 2.6 : 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color:
-                    (accent || (dark && tint != null)
-                            ? base
-                            : const Color(0xFF102040))
-                        .withValues(alpha: accent ? .35 : (dark ? .4 : .2)),
-                blurRadius: 10,
+                color: (solid ? base : const Color(0xFF102040)).withValues(
+                  alpha: solid ? (ringed ? .6 : .4) : .2,
+                ),
+                blurRadius: ringed ? 14 : 10,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -246,7 +235,15 @@ class FrostButton extends StatelessWidget {
               child: IconTheme.merge(
                 data: IconThemeData(color: fg),
                 child: DefaultTextStyle.merge(
-                  style: TextStyle(color: fg, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    color: fg,
+                    fontWeight: FontWeight.w900,
+                    shadows: solid
+                        ? const [
+                            Shadow(color: Color(0x55000000), blurRadius: 3),
+                          ]
+                        : null,
+                  ),
                   child: Center(widthFactor: 1, child: child),
                 ),
               ),
