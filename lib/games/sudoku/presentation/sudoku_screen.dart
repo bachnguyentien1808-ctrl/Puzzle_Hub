@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/score/scoring.dart';
+import 'package:puzzle_hub/core/settings/app_settings.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
@@ -654,9 +655,20 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
           leading: wide
               ? null
               : BackButton(onPressed: () => context.go(_store.homeRoute)),
-          title: Text(_daily ? 'Sudoku · Thử thách ngày' : 'Sudoku'),
+          title: wide
+              ? const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_awesome, size: 22),
+                    SizedBox(width: 10),
+                    Text('Sudoku'),
+                  ],
+                )
+              : Text(_daily ? 'Sudoku · Thử thách ngày' : 'Sudoku'),
           actions: [
             const ScoreChip(),
+            if (wide) _moonButton(),
+            if (wide) _gearMenu(g),
             if (!wide) const HelpAction(gameId: 'sudoku'),
             if (g != null && !_daily && !wide)
               IconButton(
@@ -664,29 +676,30 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
                 icon: const Icon(Icons.add_box_outlined),
                 onPressed: _openLevelSheet,
               ),
-            PopupMenuButton<String>(
-              tooltip: 'Tuỳ chọn',
-              onSelected: (v) {
-                if (v == 'limit') _setLimit(!_limitCfg);
-                if (v == 'restart') _restartSame();
-              },
-              itemBuilder: (_) => [
-                CheckedPopupMenuItem(
-                  value: 'limit',
-                  checked: _limitCfg,
-                  child: const Text('Giới hạn 3 lỗi'),
-                ),
-                if (g != null)
-                  const PopupMenuItem(
-                    value: 'restart',
-                    child: ListTile(
-                      leading: Icon(Icons.replay),
-                      title: Text('Chơi lại đề này'),
-                      contentPadding: EdgeInsets.zero,
-                    ),
+            if (!wide)
+              PopupMenuButton<String>(
+                tooltip: 'Tuỳ chọn',
+                onSelected: (v) {
+                  if (v == 'limit') _setLimit(!_limitCfg);
+                  if (v == 'restart') _restartSame();
+                },
+                itemBuilder: (_) => [
+                  CheckedPopupMenuItem(
+                    value: 'limit',
+                    checked: _limitCfg,
+                    child: const Text('Giới hạn 3 lỗi'),
                   ),
-              ],
-            ),
+                  if (g != null)
+                    const PopupMenuItem(
+                      value: 'restart',
+                      child: ListTile(
+                        leading: Icon(Icons.replay),
+                        title: Text('Chơi lại đề này'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                ],
+              ),
           ],
         ),
         body: SafeArea(
@@ -887,6 +900,112 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     Sfx.play(SfxKind.tap);
   }
 
+  /// Nut mat trang / mat troi: doi nhanh giua giao dien sang va toi.
+  Widget _moonButton() {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: Tooltip(
+        message: dark ? 'Giao diện sáng' : 'Giao diện tối',
+        child: FrostButton(
+          tint: FrostColors.indigo,
+          radius: 22,
+          padding: const EdgeInsets.all(9),
+          onPressed: () => ref
+              .read(settingsProvider.notifier)
+              .setThemeMode(dark ? ThemeMode.light : ThemeMode.dark),
+          child: Icon(
+            dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+            size: 22,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Banh rang goc tren phai: gom ca menu dieu huong va tuy chon cua game.
+  Widget _gearMenu(SudokuGame? g) {
+    PopupMenuItem<String> item(
+      String v,
+      IconData icon,
+      Color color,
+      String label,
+    ) => PopupMenuItem(
+      value: v,
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 12),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
+    return PopupMenuButton<String>(
+      tooltip: 'Menu',
+      padding: EdgeInsets.zero,
+      child: const Padding(
+        padding: EdgeInsets.fromLTRB(8, 0, 12, 0),
+        child: _GearFace(),
+      ),
+      onSelected: (v) {
+        switch (v) {
+          case 'home':
+            context.go(_store.homeRoute);
+          case 'stats':
+            context.go('/stats');
+          case 'settings':
+            context.go('/settings');
+          case 'help':
+            showTutorial(context, _id);
+          case 'limit':
+            _setLimit(!_limitCfg);
+          case 'restart':
+            _restartSame();
+        }
+      },
+      itemBuilder: (_) => [
+        item('home', Icons.home_rounded, FrostColors.orange, 'Trang chủ'),
+        item('stats', Icons.bar_chart_rounded, FrostColors.green, 'Thống kê'),
+        item('settings', Icons.tune_rounded, FrostColors.blue, 'Cài đặt'),
+        item('help', Icons.help_outline_rounded, FrostColors.pink, 'Hướng dẫn'),
+        const PopupMenuDivider(),
+        CheckedPopupMenuItem(
+          value: 'limit',
+          checked: _limitCfg,
+          child: const Text('Giới hạn 3 lỗi'),
+        ),
+        if (g != null)
+          item('restart', Icons.replay, FrostColors.purple, 'Chơi lại đề này'),
+      ],
+    );
+  }
+
+  /// Cau noi nho goc duoi ben trai (chi man rong).
+  Widget _quote() => const Align(
+    alignment: Alignment.bottomLeft,
+    child: Padding(
+      padding: EdgeInsets.only(left: 6, bottom: 4),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: Colors.white, width: 2)),
+        ),
+        child: Padding(
+          padding: EdgeInsets.only(left: 10),
+          child: Text(
+            '“Mỗi con số đúng là một bước tiến\ngần hơn đến chiến thắng.”',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              height: 1.4,
+              fontWeight: FontWeight.w700,
+              shadows: [Shadow(color: Color(0xAA000000), blurRadius: 8)],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
   /// Man rong (>= [_wideMin] px): menu trai, ban choi giua, bang dieu khien
   /// phai, va (>= [_statsMin] px) cot thanh tich.
   static const _wideMin = 1100.0;
@@ -910,11 +1029,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
         constraints: BoxConstraints(minHeight: c.maxHeight - 20),
         child: Row(
           children: [
-            SizedBox(
-              width: outerW,
-              height: c.maxHeight - 20,
-              child: Align(alignment: Alignment.topLeft, child: _rail()),
-            ),
+            SizedBox(width: outerW, height: c.maxHeight - 20, child: _quote()),
             const SizedBox(width: gap),
             Expanded(
               child: Center(
@@ -1001,42 +1116,6 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
         ),
       ],
     ),
-  );
-
-  Widget _rail() => FrostNavRail(
-    items: [
-      FrostNavItem(
-        icon: Icons.home_rounded,
-        label: 'Trang chủ',
-        color: FrostColors.orange,
-        onTap: () => context.go(_store.homeRoute),
-      ),
-      FrostNavItem(
-        icon: Icons.grid_on,
-        label: 'Sudoku',
-        color: FrostColors.purple,
-        selected: true,
-        onTap: () {},
-      ),
-      FrostNavItem(
-        icon: Icons.bar_chart_rounded,
-        label: 'Thống kê',
-        color: FrostColors.green,
-        onTap: () => context.go('/stats'),
-      ),
-      FrostNavItem(
-        icon: Icons.settings_rounded,
-        label: 'Cài đặt',
-        color: FrostColors.blue,
-        onTap: () => context.go('/settings'),
-      ),
-      FrostNavItem(
-        icon: Icons.help_outline_rounded,
-        label: 'Hướng dẫn',
-        color: FrostColors.pink,
-        onTap: () => showTutorial(context, _id),
-      ),
-    ],
   );
 
   Widget _levelTabs(SudokuGame g) => Row(
@@ -1506,6 +1585,41 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
           child: Text(_daily ? 'Về thử thách' : 'Ván mới'),
         ),
       ],
+    );
+  }
+}
+
+/// Mat nut banh rang: tron trang, icon xanh (noi tren nen troi).
+class _GearFace extends StatelessWidget {
+  const _GearFace();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+          FrostColors.blue.withValues(alpha: .16),
+          Colors.white,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: FrostColors.blue.withValues(alpha: .5),
+          width: 1.3,
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33102040),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Icon(
+        Icons.settings_rounded,
+        size: 22,
+        color: Color.lerp(FrostColors.blue, Colors.black, .3),
+      ),
     );
   }
 }
