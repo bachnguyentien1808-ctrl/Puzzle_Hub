@@ -889,7 +889,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
 
   /// Man rong (>= [_wideMin] px): menu trai, ban choi giua, bang dieu khien
   /// phai, va (>= [_statsMin] px) cot thanh tich.
-  static const _wideMin = 980.0;
+  static const _wideMin = 1100.0;
   static const _statsMin = 1240.0;
 
   Widget _wideMain(SudokuGame g, BoxConstraints c) {
@@ -897,111 +897,111 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     final showStats = c.maxWidth >= _statsMin;
     final f = FrostStyle.of(context);
     const gap = 16.0;
-    const railW = 190.0;
-    const sideW = 300.0;
-    const statsW = 250.0;
-    final centerW =
-        c.maxWidth -
-        40 -
-        railW -
-        sideW -
-        gap * 2 -
-        (showStats ? statsW + gap : 0);
-    // Ban vuong vua khung: tru the, tab do kho (~60), hang nut duoi (~80).
-    final board = min(centerW - 40, c.maxHeight - 230).clamp(300.0, 640.0);
+    const sideW = 290.0;
+    // Hai cot ngoai (menu trai, thanh tich phai) cung rong de the giua nam
+    // dung giua man hinh.
+    final outerW = showStats ? 250.0 : 190.0;
+    final avail = c.maxWidth - 40 - outerW * 2 - gap * 2 - 40 - sideW - gap;
+    // Ban vuong vua khung: tru tab do kho (~60), hang nut duoi (~80), le.
+    final board = min(avail, c.maxHeight - 250).clamp(300.0, 640.0);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: railW, child: _rail()),
-          const SizedBox(width: gap),
-          Expanded(
-            child: Center(
-              child: SizedBox(
-                width: board + 40,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: c.maxHeight - 20),
+        child: Row(
+          children: [
+            SizedBox(
+              width: outerW,
+              child: Align(alignment: Alignment.topLeft, child: _rail()),
+            ),
+            const SizedBox(width: gap),
+            Expanded(
+              child: Center(
                 child: FrostCard(
-                  radius: 28,
+                  radius: 32,
                   padding: const EdgeInsets.all(20),
-                  child: Column(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (!_daily) _levelTabs(g),
-                      if (!_daily) const SizedBox(height: 14),
-                      Center(
-                        child: SizedBox(width: board, child: _boardStack(g)),
+                      SizedBox(
+                        width: board,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (!_daily) _levelTabs(g),
+                            if (!_daily) const SizedBox(height: 14),
+                            _boardStack(g),
+                            _hintArea(g),
+                            const SizedBox(height: 6),
+                            _bottomBar(g),
+                          ],
+                        ),
                       ),
-                      _hintArea(g),
-                      const SizedBox(height: 6),
-                      _bottomBar(g),
+                      const SizedBox(width: gap),
+                      SizedBox(
+                        width: sideW,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _timerCard(g, f),
+                            const SizedBox(height: gap),
+                            _notesCard(f),
+                            const SizedBox(height: gap),
+                            _padCard(g, remaining),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: gap),
-          SizedBox(
-            width: sideW,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _timerCard(g, f),
-                const SizedBox(height: gap),
-                _notesCard(f),
-                const SizedBox(height: gap),
-                FrostCard(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SudokuNumGrid(
-                        remaining: remaining,
-                        notesOn: _notes,
-                        onDigit: _digit,
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          _sideKey(
-                            Icons.backspace_outlined,
-                            'Xoá',
-                            _erase,
-                            FrostColors.red,
-                          ),
-                          const SizedBox(width: 10),
-                          _sideKey(
-                            Icons.lightbulb_outline,
-                            'Gợi ý ${g.hintsLeft}',
-                            g.hintsLeft > 0 ? _hint : null,
-                            FrostColors.amber,
-                          ),
-                          const SizedBox(width: 10),
-                          _sideKey(
-                            _notes ? Icons.edit : Icons.edit_outlined,
-                            'Ghi chú',
-                            _toggleNotes,
-                            FrostColors.purple,
-                            selected: _notes,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (showStats) ...[
             const SizedBox(width: gap),
-            SizedBox(width: statsW, child: _statsCard(f)),
+            SizedBox(
+              width: outerW,
+              child: showStats
+                  ? Align(alignment: Alignment.topRight, child: _statsCard(f))
+                  : null,
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
+
+  Widget _padCard(SudokuGame g, List<int> remaining) => FrostCard(
+    padding: const EdgeInsets.all(14),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SudokuNumGrid(remaining: remaining, notesOn: _notes, onDigit: _digit),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            _sideKey(Icons.backspace_outlined, 'Xoá', _erase, FrostColors.red),
+            const SizedBox(width: 10),
+            _sideKey(
+              Icons.lightbulb_outline,
+              'Gợi ý ${g.hintsLeft}',
+              g.hintsLeft > 0 ? _hint : null,
+              FrostColors.amber,
+            ),
+            const SizedBox(width: 10),
+            _sideKey(
+              _notes ? Icons.edit : Icons.edit_outlined,
+              'Ghi chú',
+              _toggleNotes,
+              FrostColors.purple,
+              selected: _notes,
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 
   Widget _rail() => FrostNavRail(
     items: [
