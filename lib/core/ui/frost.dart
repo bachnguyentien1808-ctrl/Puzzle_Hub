@@ -267,6 +267,8 @@ class FrostNavItem {
   final Color color;
 }
 
+/// Menu doc: mot the kinh duy nhat, cac muc xep gon (o icon mau bo goc +
+/// chu), muc dang mo nen pha mau nhan nhe va co vach ben trai.
 class FrostNavRail extends StatelessWidget {
   const FrostNavRail({required this.items, super.key});
 
@@ -275,61 +277,51 @@ class FrostNavRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final f = FrostStyle.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final it in items)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: it.selected
-                    ? LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color.lerp(f.accent, Colors.white, .2)!,
-                          f.accent,
-                        ],
-                      )
-                    : null,
-                color: it.selected ? null : f.key,
-                border: Border.all(
-                  color: it.selected ? f.accent : f.border,
-                  width: 1.4,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: (it.selected ? f.accent : const Color(0xFF102040))
-                        .withValues(alpha: it.selected ? .4 : .2),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
+    return FrostCard(
+      strong: true,
+      radius: 26,
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final it in items)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
               child: Material(
-                color: Colors.transparent,
+                color: it.selected
+                    ? f.accent.withValues(alpha: .14)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(16),
                   onTap: it.onTap,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 9,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(8, 8, 10, 8),
                     child: Row(
                       children: [
-                        DecoratedBox(
+                        Container(
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
-                            color: it.color,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
+                            borderRadius: BorderRadius.circular(12),
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color.lerp(it.color, Colors.white, .25)!,
+                                it.color,
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: it.color.withValues(alpha: .35),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Icon(it.icon, size: 20, color: Colors.white),
-                          ),
+                          child: Icon(it.icon, size: 20, color: Colors.white),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -338,19 +330,30 @@ class FrostNavRail extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              color: it.selected ? f.onAccent : f.ink,
+                              fontWeight: it.selected
+                                  ? FontWeight.w900
+                                  : FontWeight.w700,
+                              color: it.selected ? f.accent : f.ink,
                             ),
                           ),
                         ),
+                        if (it.selected)
+                          Container(
+                            width: 5,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              color: f.accent,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
                       ],
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
