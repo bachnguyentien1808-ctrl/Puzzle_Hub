@@ -188,6 +188,8 @@ class _PadKey extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = FrostColors.digits[(digit - 1) % 9];
+    final dark = FrostStyle.of(context).ink.computeLuminance() > .5;
+    final color = FrostButton.tintInk(base, dark: dark);
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 250),
       opacity: remaining <= 0 ? 0.3 : 1,
@@ -209,7 +211,7 @@ class _PadKey extends StatelessWidget {
                   fontSize: notesOn ? 19 : 23,
                   height: 1.1,
                   fontWeight: FontWeight.w900,
-                  color: Colors.white,
+                  color: color,
                 ),
               ),
               Text(
@@ -217,7 +219,7 @@ class _PadKey extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   height: 1.1,
-                  color: Colors.white.withValues(alpha: .85),
+                  color: color.withValues(alpha: .8),
                   fontWeight: FontWeight.w800,
                 ),
               ),

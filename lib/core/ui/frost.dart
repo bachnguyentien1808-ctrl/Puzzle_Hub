@@ -183,46 +183,64 @@ class FrostButton extends StatelessWidget {
   final double radius;
   final EdgeInsetsGeometry padding;
 
+  /// Chu / icon dam cua nut co mau: toi mau thi lay mau sang, sang mau thi
+  /// lay mau toi (de doc tren nen mo hoac nen dac).
+  static Color tintInk(Color tint, {required bool dark}) => dark
+      ? Color.lerp(tint, Colors.white, .75)!
+      : Color.lerp(tint, Colors.black, .3)!;
+
   @override
   Widget build(BuildContext context) {
     final f = FrostStyle.of(context);
     final dark = f.ink.computeLuminance() > .5;
     final base = tint ?? f.accent;
-    // Nut co mau rieng: to dac mau (chu trang) cho dam, de thay; nut chon /
-    // chinh co them vong trang. Nut khong mau: nen trang, chu dam.
-    final solid = tint != null || primary || selected;
-    final ringed = selected || primary;
-    final fg = solid ? f.onAccent : f.ink;
-    final deep = Color.lerp(base, Colors.black, .28)!;
+    // Chon / chinh: to dac mau nhan. Nut co mau rieng: kinh pha mau — ban
+    // dem dac hon (nen xanh navy ~ 95%) cho ro chu, ban ngay trong hon.
+    final accent = primary || selected;
+    final fg = accent
+        ? f.onAccent
+        : tint == null
+        ? f.ink
+        : tintInk(tint!, dark: dark);
+    final fill = accent
+        ? null
+        : tint == null
+        ? f.key
+        : Color.alphaBlend(
+            tint!.withValues(alpha: dark ? .34 : .18),
+            dark ? const Color(0xF2141E4C) : const Color(0x99FFFFFF),
+          );
     return Opacity(
-      opacity: onPressed == null ? (dark ? 0.7 : 0.55) : 1,
+      opacity: onPressed == null ? (dark ? 0.75 : 0.6) : 1,
       child: Material(
         color: Colors.transparent,
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
-            color: solid ? null : f.key,
-            gradient: solid
+            color: fill,
+            gradient: accent
                 ? LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [Color.lerp(base, Colors.white, .16)!, deep],
+                    colors: [Color.lerp(base, Colors.white, .2)!, base],
                   )
                 : null,
-            border: Border.all(
-              color: ringed
-                  ? Colors.white
-                  : solid
-                  ? deep
-                  : f.border,
-              width: ringed ? 2.6 : 1.5,
-            ),
+            border: !accent && tint != null
+                ? Border.all(
+                    color: tint!.withValues(alpha: dark ? .9 : .5),
+                    width: dark ? 1.7 : 1.3,
+                  )
+                : dark
+                ? Border.all(color: f.border, width: 1.4)
+                : null,
             boxShadow: [
               BoxShadow(
-                color: (solid ? base : const Color(0xFF102040)).withValues(
-                  alpha: solid ? (ringed ? .6 : .4) : .2,
-                ),
-                blurRadius: ringed ? 14 : 10,
+                color:
+                    (accent || (dark && tint != null)
+                            ? base
+                            : const Color(0xFF102040))
+                        .withValues(alpha: accent ? .35 : (dark ? .4 : .2)),
+                blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
             ],
@@ -235,15 +253,7 @@ class FrostButton extends StatelessWidget {
               child: IconTheme.merge(
                 data: IconThemeData(color: fg),
                 child: DefaultTextStyle.merge(
-                  style: TextStyle(
-                    color: fg,
-                    fontWeight: FontWeight.w900,
-                    shadows: solid
-                        ? const [
-                            Shadow(color: Color(0x55000000), blurRadius: 3),
-                          ]
-                        : null,
-                  ),
+                  style: TextStyle(color: fg, fontWeight: FontWeight.w800),
                   child: Center(widthFactor: 1, child: child),
                 ),
               ),
