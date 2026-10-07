@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:puzzle_hub/core/theme/day_phase.dart';
+import 'package:puzzle_hub/core/ui/frost.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 
 /// Bo dung cu giao dien kieu game casual: nut bong 3D, khung kem, thanh tai
@@ -615,8 +616,9 @@ class CandyGloss extends StatelessWidget {
   }
 }
 
-/// Nut bong 3D: gradient, vien kem-vang, vet bong, bong do duoi, nhun khi nhan.
-class CandyButton extends StatefulWidget {
+/// Nut chinh cua app, kieu kinh pha mau (tint = mau cuoi cua bang mau).
+/// [dim] = nut chua chon: mo di mot chut.
+class CandyButton extends StatelessWidget {
   const CandyButton({
     required this.child,
     required this.onPressed,
@@ -639,90 +641,20 @@ class CandyButton extends StatefulWidget {
   final bool circle;
 
   @override
-  State<CandyButton> createState() => _CandyButtonState();
-}
-
-class _CandyButtonState extends State<CandyButton> {
-  bool _down = false;
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
-    final colors = widget.dim
-        ? [
-            Color.alphaBlend(Colors.black45, widget.colors.first),
-            Color.alphaBlend(Colors.black45, widget.colors.last),
-          ]
-        : widget.colors;
-    final r = widget.circle ? 999.0 : widget.radius;
-    return MouseRegion(
-      cursor: widget.onPressed == null
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _down = true),
-        onTapCancel: () => setState(() => _down = false),
-        onTapUp: (_) => setState(() => _down = false),
-        onTap: widget.onPressed,
-        child: AnimatedScale(
-          scale: _down
-              ? 0.95
-              : _hover
-              ? 1.08
-              : 1,
-          duration: const Duration(milliseconds: 90),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(r),
-              border: Border.all(color: Candy.gold, width: 2),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: colors,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Candy.deep(colors),
-                  offset: Offset(0, _down ? 1 : 4),
-                ),
-                const BoxShadow(
-                  color: Color(0x55000000),
-                  offset: Offset(0, 7),
-                  blurRadius: 6,
-                ),
-              ],
-            ),
-            child: Stack(
-              // Chu trong nut luon nam giua, ke ca khi nut gian het chieu ngang.
-              alignment: Alignment.center,
-              children: [
-                CandyGloss(radius: r),
-                Padding(
-                  padding: widget.padding,
-                  child: Center(
-                    widthFactor: 1,
-                    heightFactor: 1,
-                    child: DefaultTextStyle.merge(
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        shadows: [
-                          Shadow(color: Color(0x88000000), blurRadius: 2),
-                        ],
-                      ),
-                      child: IconTheme.merge(
-                        data: const IconThemeData(color: Colors.white),
-                        child: widget.child,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+    // Center nho nut ve dung kich thuoc noi dung, khong bi cha ep gian cao
+    // (vd. AppBar co chieu cao co dinh); nut gian ngang van gian binh thuong.
+    return Center(
+      widthFactor: 1,
+      heightFactor: 1,
+      child: Opacity(
+        opacity: dim ? 0.6 : 1,
+        child: FrostButton(
+          tint: colors.last,
+          radius: circle ? 999 : radius,
+          padding: padding,
+          onPressed: onPressed,
+          child: child,
         ),
       ),
     );

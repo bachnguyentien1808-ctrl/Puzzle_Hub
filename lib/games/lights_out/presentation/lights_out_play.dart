@@ -382,7 +382,6 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
           leading: BackButton(onPressed: widget.onExit),
           title: Text(_title),
           actions: [

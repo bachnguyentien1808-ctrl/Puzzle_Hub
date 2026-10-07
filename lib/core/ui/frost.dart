@@ -254,7 +254,7 @@ class FrostButton extends StatelessWidget {
                 data: IconThemeData(color: fg),
                 child: DefaultTextStyle.merge(
                   style: TextStyle(color: fg, fontWeight: FontWeight.w800),
-                  child: Center(widthFactor: 1, child: child),
+                  child: Center(widthFactor: 1, heightFactor: 1, child: child),
                 ),
               ),
             ),

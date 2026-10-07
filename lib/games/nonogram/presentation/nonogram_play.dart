@@ -345,7 +345,6 @@ class _NonogramPlayState extends State<NonogramPlay>
           backgroundColor: Colors.transparent,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
             leading: BackButton(onPressed: _back),
             title: Text('${_pic.name} ${_n}x$_n'),
             actions: [

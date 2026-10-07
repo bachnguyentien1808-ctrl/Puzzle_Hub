@@ -82,7 +82,6 @@ class _LightsOutScreenState extends ConsumerState<LightsOutScreen> {
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
           actions: const [
             ScoreChip(),
             HelpAction(gameId: 'lights_out'),

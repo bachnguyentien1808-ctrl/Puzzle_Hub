@@ -650,7 +650,6 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
           automaticallyImplyLeading: false,
           leading: wide
               ? null

@@ -120,7 +120,6 @@ class _NonogramScreenState extends ConsumerState<NonogramScreen> {
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
           actions: const [
             ScoreChip(),
             HelpAction(gameId: 'nonogram'),

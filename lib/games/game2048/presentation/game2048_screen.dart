@@ -357,7 +357,6 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
           leading: BackButton(onPressed: () => context.go('/')),
           title: Text('2048  ${_g.size}x${_g.size}'),
           actions: [

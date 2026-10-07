@@ -393,7 +393,6 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
           leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
           title: Text(
             _game.won
