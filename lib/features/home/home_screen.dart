@@ -827,10 +827,12 @@ class GameCard extends StatelessWidget {
               tooltip: 'Cách chơi ${game.title}',
               visualDensity: VisualDensity.compact,
               iconSize: 20,
-              icon: const Icon(
-                Icons.help_outline_rounded,
-                color: Colors.white70,
+              // Chi con dau hoi trong vong tron nho, khong nen trang.
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
               ),
+              icon: const Icon(Icons.help_outline_rounded),
               onPressed: () => showHowTo(context, game),
             ),
           ),
