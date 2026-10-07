@@ -187,13 +187,15 @@ class _PadKey extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = FrostColors.digits[(digit - 1) % 9];
+    final base = FrostColors.digits[(digit - 1) % 9];
+    final dark = FrostStyle.of(context).ink.computeLuminance() > .5;
+    final color = dark ? Color.lerp(base, Colors.white, .6)! : base;
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 250),
       opacity: remaining <= 0 ? 0.3 : 1,
       child: FrostButton(
         key: ValueKey('sudoku-pad-$digit'),
-        tint: color,
+        tint: base,
         radius: 14,
         padding: const EdgeInsets.symmetric(vertical: 4),
         onPressed: remaining <= 0 ? null : () => onDigit(digit),

@@ -197,7 +197,7 @@ class FrostButton extends StatelessWidget {
               ? Color.lerp(tint, Colors.white, .35)!
               : Color.lerp(tint, Colors.black, .3)!);
     return Opacity(
-      opacity: onPressed == null ? 0.65 : 1,
+      opacity: onPressed == null ? (dark ? 0.8 : 0.65) : 1,
       child: Material(
         color: Colors.transparent,
         child: Ink(
@@ -207,9 +207,17 @@ class FrostButton extends StatelessWidget {
                 ? null
                 : tint == null
                 ? f.key
-                : Color.alphaBlend(tint!.withValues(alpha: .16), f.key),
+                : Color.alphaBlend(
+                    tint!.withValues(alpha: dark ? .38 : .16),
+                    f.key,
+                  ),
             border: !accent && tint != null
-                ? Border.all(color: tint!.withValues(alpha: .5), width: 1.3)
+                ? Border.all(
+                    color: tint!.withValues(alpha: dark ? .95 : .5),
+                    width: dark ? 1.7 : 1.3,
+                  )
+                : dark
+                ? Border.all(color: f.border, width: 1.4)
                 : null,
             gradient: accent
                 ? LinearGradient(
@@ -220,9 +228,11 @@ class FrostButton extends StatelessWidget {
                 : null,
             boxShadow: [
               BoxShadow(
-                color: (accent ? base : const Color(0xFF102040)).withValues(
-                  alpha: accent ? .35 : .2,
-                ),
+                color:
+                    (accent || (dark && tint != null)
+                            ? base
+                            : const Color(0xFF102040))
+                        .withValues(alpha: accent ? .35 : (dark ? .4 : .2)),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
