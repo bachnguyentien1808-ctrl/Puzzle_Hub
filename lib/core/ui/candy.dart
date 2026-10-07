@@ -257,7 +257,11 @@ class _AnimatedBackdropState extends State<AnimatedBackdrop>
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: light
+              // Chieu: troi cam sang nen phu tim nhe (dam o tren, noi AppBar)
+              // de nut, bieu tuong va chu van noi ro nhu ngay va dem.
+              colors: phase == DayPhase.dusk
+                  ? const [Color(0x8C2A1038), Color(0x302A1038)]
+                  : light
                   ? const [Color(0x00FFFFFF), Color(0x00FFFFFF)]
                   : const [Color(0x00000000), Color(0x00000000)],
             ),
@@ -287,7 +291,7 @@ class _AnimatedBackdropState extends State<AnimatedBackdrop>
   static ColorFilter _lift(DayPhase p) {
     final (k, off) = switch (p) {
       DayPhase.day => (1.0, 0.0),
-      DayPhase.dusk => (1.1, 5.0),
+      DayPhase.dusk => (1.0, 0.0),
       DayPhase.night => (1.4, 18.0),
     };
     return ColorFilter.matrix([

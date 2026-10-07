@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
+import 'package:puzzle_hub/core/ui/frost.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_engine.dart';
 
@@ -61,26 +62,18 @@ class SudokuActions extends StatelessWidget {
         _Act(
           icon: Icons.undo,
           label: 'Hoàn tác',
-          colors: Candy.blue,
           onTap: canUndo ? onUndo : null,
         ),
         _Act(
           icon: Icons.redo,
           label: 'Làm lại',
-          colors: Candy.indigo,
           onTap: canRedo ? onRedo : null,
         ),
-        _Act(
-          icon: Icons.backspace_outlined,
-          label: 'Xoá',
-          colors: Candy.red,
-          onTap: onErase,
-        ),
+        _Act(icon: Icons.backspace_outlined, label: 'Xoá', onTap: onErase),
         _Act(
           icon: notesOn ? Icons.edit : Icons.edit_outlined,
           label: 'Ghi chú',
-          colors: Candy.orange,
-          active: notesOn,
+          selected: notesOn,
           badge: notesOn ? 'BẬT' : 'TẮT',
           badgeColor: notesOn ? Candy.green.last : Colors.blueGrey,
           onTap: onNotes,
@@ -88,7 +81,6 @@ class SudokuActions extends StatelessWidget {
         _Act(
           icon: Icons.lightbulb_outline,
           label: 'Gợi ý',
-          colors: Candy.teal,
           badge: '$hintsLeft',
           badgeColor: hintsLeft > 0 ? Candy.orange.last : Colors.blueGrey,
           onTap: hintsLeft > 0 ? onHint : null,
@@ -102,26 +94,23 @@ class _Act extends StatelessWidget {
   const _Act({
     required this.icon,
     required this.label,
-    required this.colors,
     required this.onTap,
-    this.active = true,
+    this.selected = false,
     this.badge,
     this.badgeColor,
   });
 
   final IconData icon;
   final String label;
-  final List<Color> colors;
   final VoidCallback? onTap;
 
-  /// false = nut tat (mo di).
-  final bool active;
+  /// Dang bat (vd. che do ghi chu): to mau nhan.
+  final bool selected;
   final String? badge;
   final Color? badgeColor;
 
   @override
   Widget build(BuildContext context) {
-    final enabled = onTap != null;
     Widget ic = Icon(icon, size: 24);
     if (badge != null) {
       ic = Badge(
@@ -138,31 +127,27 @@ class _Act extends StatelessWidget {
         label: label,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Opacity(
-            opacity: enabled ? 1 : 0.55,
-            child: CandyButton(
-              colors: colors,
-              dim: !enabled || !active,
-              radius: 12,
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-              onPressed: onTap,
-              child: SizedBox(
-                width: double.infinity,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ic,
-                    const SizedBox(height: 2),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        style: const TextStyle(fontSize: 11),
-                      ),
+          child: FrostButton(
+            selected: selected,
+            radius: 14,
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 7),
+            onPressed: onTap,
+            child: SizedBox(
+              width: double.infinity,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ic,
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      style: const TextStyle(fontSize: 11),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -172,7 +157,66 @@ class _Act extends StatelessWidget {
   }
 }
 
-/// Ban phim so 1-9, moi nut hien so con lai; du 9 thi mo va khoa.
+/// Mot phim so Sudoku (so lon + so o con thieu); du 9 thi mo va khoa.
+class _PadKey extends StatelessWidget {
+  const _PadKey({
+    required this.digit,
+    required this.remaining,
+    required this.notesOn,
+    required this.onDigit,
+    this.height = 46,
+  });
+
+  final int digit;
+  final int remaining;
+  final bool notesOn;
+  final ValueChanged<int> onDigit;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final f = FrostStyle.of(context);
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 250),
+      opacity: remaining <= 0 ? 0.3 : 1,
+      child: FrostButton(
+        key: ValueKey('sudoku-pad-$digit'),
+        radius: 14,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        onPressed: remaining <= 0 ? null : () => onDigit(digit),
+        child: SizedBox(
+          width: double.infinity,
+          height: height,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '$digit',
+                style: TextStyle(
+                  fontSize: notesOn ? 19 : 23,
+                  height: 1.1,
+                  fontWeight: FontWeight.w900,
+                  color: f.accent,
+                ),
+              ),
+              Text(
+                remaining <= 0 ? '' : '$remaining',
+                style: TextStyle(
+                  fontSize: 11,
+                  height: 1.1,
+                  color: f.subInk,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Ban phim so 1-9 mot hang (dien thoai), moi nut hien so con lai.
 class SudokuNumPad extends StatelessWidget {
   const SudokuNumPad({
     required this.remaining,
@@ -194,44 +238,56 @@ class SudokuNumPad extends StatelessWidget {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 250),
-                opacity: remaining[d - 1] <= 0 ? 0.3 : 1,
-                child: CandyButton(
-                  key: ValueKey('sudoku-pad-$d'),
-                  colors: Candy.palettes[(d - 1) % Candy.palettes.length],
-                  dim: notesOn,
-                  radius: 10,
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  onPressed: remaining[d - 1] <= 0 ? null : () => onDigit(d),
-                  child: SizedBox(
-                    width: double.infinity,
-                    height: 46,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '$d',
-                          style: TextStyle(
-                            fontSize: notesOn ? 19 : 23,
-                            height: 1.1,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        Text(
-                          remaining[d - 1] <= 0 ? '' : '${remaining[d - 1]}',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            height: 1.1,
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+              child: _PadKey(
+                digit: d,
+                remaining: remaining[d - 1],
+                notesOn: notesOn,
+                onDigit: onDigit,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Ban phim so 3x3 (man rong): cung phim, xep luoi.
+class SudokuNumGrid extends StatelessWidget {
+  const SudokuNumGrid({
+    required this.remaining,
+    required this.notesOn,
+    required this.onDigit,
+    super.key,
+  });
+
+  final List<int> remaining;
+  final bool notesOn;
+  final ValueChanged<int> onDigit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var r = 0; r < 3; r++)
+          Padding(
+            padding: EdgeInsets.only(top: r == 0 ? 0 : 10),
+            child: Row(
+              children: [
+                for (var c = 0; c < 3; c++)
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(left: c == 0 ? 0 : 10),
+                      child: _PadKey(
+                        digit: r * 3 + c + 1,
+                        remaining: remaining[r * 3 + c],
+                        notesOn: notesOn,
+                        onDigit: onDigit,
+                        height: 52,
+                      ),
                     ),
                   ),
-                ),
-              ),
+              ],
             ),
           ),
       ],

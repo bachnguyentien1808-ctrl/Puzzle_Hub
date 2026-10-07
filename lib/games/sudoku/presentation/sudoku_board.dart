@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
+import 'package:puzzle_hub/core/ui/frost.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_game.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_solver.dart';
@@ -15,14 +16,6 @@ class _Look {
   final List<Color>? colors;
   final Color? fg;
 }
-
-const _white = [Color(0xFFFFFFFF), Color(0xFFE4ECF8)];
-const _lightBlue = [Color(0xFFE6F3FF), Color(0xFFB4D6F7)];
-const _peerFilled = [Color(0xFF9CCBFF), Color(0xFF6FAEF0)];
-const _peerEmpty = [Color(0x333D9BFF), Color(0x333D9BFF)];
-const _hintTint = [Color(0xFF8EE3A0), Color(0xFF52C777)];
-const _hintEmpty = [Color(0x5552C777), Color(0x5552C777)];
-const _ink = Color(0xFF14224A);
 
 /// Ban co 9x9 kieu keo ngot: khung kem, o bong noi, to sang, vien chon dong,
 /// song sang.
@@ -68,8 +61,9 @@ class _SudokuBoardState extends State<SudokuBoard> {
   @override
   Widget build(BuildContext context) {
     final reduce = MediaQuery.disableAnimationsOf(context);
-    return CandyFrame(
-      padding: 5,
+    final f = FrostStyle.of(context);
+    return _Frame(
+      f: f,
       child: AspectRatio(
         aspectRatio: 1,
         child: LayoutBuilder(
@@ -130,9 +124,9 @@ class _SudokuBoardState extends State<SudokuBoard> {
                     ],
                   ),
                   // Vien 9 khoi 3x3.
-                  const Positioned.fill(
+                  Positioned.fill(
                     child: IgnorePointer(
-                      child: CustomPaint(painter: _GridPainter()),
+                      child: CustomPaint(painter: _GridPainter(f.ink)),
                     ),
                   ),
                   // Bung sang khi xong hang/cot/khoi.
@@ -155,7 +149,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                           painter: _WavePainter(
                             widget.wave,
                             widget.waveDelay,
-                            Colors.white,
+                            f.accent,
                           ),
                         ),
                       ),
@@ -173,9 +167,7 @@ class _SudokuBoardState extends State<SudokuBoard> {
                       height: cell,
                       child: IgnorePointer(
                         child: _PulseBorder(
-                          color: game.isWrong(sel)
-                              ? Candy.red.first
-                              : Colors.white,
+                          color: game.isWrong(sel) ? Candy.red.first : f.accent,
                           reduce: reduce,
                         ),
                       ),
@@ -241,31 +233,59 @@ class _SudokuBoardState extends State<SudokuBoard> {
   }
 
   _Look _look(int i, int? sel, int selVal, Set<int> hintSet) {
+    final f = FrostStyle.of(context);
     final v = game.values[i];
-    final filled = v != 0;
-    if (i == widget.hintCell) return const _Look(Candy.green, fg: Colors.white);
-    if (game.isWrong(i)) return const _Look(Candy.red, fg: Colors.white);
+    List<Color> flat(Color c) => [c, c];
+    if (i == widget.hintCell) {
+      return _Look(flat(const Color(0xCC3DBE6B)), fg: f.ink);
+    }
+    if (game.isWrong(i)) {
+      return _Look(flat(const Color(0x66E53935)), fg: const Color(0xFFD32F2F));
+    }
     if (sel != null) {
-      if (i == sel) return const _Look(Candy.blue, fg: Colors.white);
+      if (i == sel) {
+        return _Look(flat(f.accent.withValues(alpha: .86)), fg: f.onAccent);
+      }
       if (selVal != 0 && v == selVal) {
-        return const _Look(Candy.orange, fg: Color(0xFF4A2A08));
+        return _Look(flat(f.accent.withValues(alpha: .34)), fg: f.ink);
       }
       final same =
           i ~/ 9 == sel ~/ 9 ||
           i % 9 == sel % 9 ||
           SudokuSolver.boxOf(i) == SudokuSolver.boxOf(sel);
-      if (same) {
-        return _Look(
-          filled ? _peerFilled : _peerEmpty,
-          fg: filled ? _ink : null,
-        );
-      }
+      if (same) return _Look(flat(f.accent.withValues(alpha: .12)));
     }
     if (hintSet.contains(i)) {
-      return _Look(filled ? _hintTint : _hintEmpty, fg: filled ? _ink : null);
+      return _Look(flat(const Color(0x3A3DBE6B)));
     }
-    if (!filled) return const _Look(null);
-    return _Look(game.isGiven(i) ? _white : _lightBlue);
+    return const _Look(null);
+  }
+}
+
+/// Khung ban co: nen sang, vien dam, bo tron.
+class _Frame extends StatelessWidget {
+  const _Frame({required this.f, required this.child});
+
+  final FrostStyle f;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: f.key,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: f.ink.withValues(alpha: .85), width: 2),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x26102040),
+            blurRadius: 18,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Padding(padding: const EdgeInsets.all(3), child: child),
+    );
   }
 }
 
@@ -293,15 +313,16 @@ class _Cell extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = game.values[index];
     final given = game.isGiven(index);
+    final f = FrostStyle.of(context);
     Widget child;
     if (v != 0) {
       final color =
           look.fg ??
           (given
-              ? _ink
+              ? f.ink
               : game.hinted.contains(index)
               ? const Color(0xFF1F8A3B)
-              : const Color(0xFF1565D8));
+              : f.accent);
       final text = Text(
         '$v',
         style: TextStyle(
@@ -318,6 +339,8 @@ class _Cell extends StatelessWidget {
         size: size,
         selVal: selVal,
         fg: look.fg,
+        base: f.subInk,
+        hot: f.accent,
       );
     } else {
       child = const SizedBox.shrink();
@@ -409,12 +432,16 @@ class _Notes extends StatelessWidget {
     required this.size,
     required this.selVal,
     required this.fg,
+    required this.base,
+    required this.hot,
   });
 
   final int mask;
   final double size;
   final int selVal;
   final Color? fg;
+  final Color base;
+  final Color hot;
 
   @override
   Widget build(BuildContext context) {
@@ -438,14 +465,14 @@ class _Notes extends StatelessWidget {
 
   Widget _note(int d) {
     if (mask & (1 << d) == 0) return const SizedBox.shrink();
-    final hot = d == selVal;
+    final isHot = d == selVal;
     return Text(
       '$d',
       style: TextStyle(
         fontSize: size * 0.24,
         height: 1,
-        fontWeight: hot ? FontWeight.w900 : FontWeight.w600,
-        color: hot ? (fg ?? Candy.red.last) : (fg ?? const Color(0xFF7A6A55)),
+        fontWeight: isHot ? FontWeight.w900 : FontWeight.w600,
+        color: isHot ? (fg ?? hot) : (fg ?? base),
       ),
     );
   }
@@ -510,35 +537,34 @@ class _PulseBorderState extends State<_PulseBorder>
 }
 
 class _GridPainter extends CustomPainter {
-  const _GridPainter();
+  const _GridPainter(this.ink);
+
+  final Color ink;
 
   @override
   void paint(Canvas canvas, Size size) {
     final cell = size.width / 9;
-    final p = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = const Color(0xFFBFD6FF).withValues(alpha: 0.55);
-    for (var br = 0; br < 3; br++) {
-      for (var bc = 0; bc < 3; bc++) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(
-              bc * 3 * cell,
-              br * 3 * cell,
-              3 * cell,
-              3 * cell,
-            ).deflate(0.7),
-            const Radius.circular(7),
-          ),
-          p,
-        );
-      }
+    final thin = Paint()
+      ..strokeWidth = 0.8
+      ..color = ink.withValues(alpha: 0.22);
+    final thick = Paint()
+      ..strokeWidth = 2
+      ..color = ink.withValues(alpha: 0.85);
+    for (var i = 1; i < 9; i++) {
+      if (i % 3 == 0) continue;
+      canvas
+        ..drawLine(Offset(i * cell, 0), Offset(i * cell, size.height), thin)
+        ..drawLine(Offset(0, i * cell), Offset(size.width, i * cell), thin);
+    }
+    for (var i = 3; i < 9; i += 3) {
+      canvas
+        ..drawLine(Offset(i * cell, 0), Offset(i * cell, size.height), thick)
+        ..drawLine(Offset(0, i * cell), Offset(size.width, i * cell), thick);
     }
   }
 
   @override
-  bool shouldRepaint(_GridPainter old) => false;
+  bool shouldRepaint(_GridPainter old) => old.ink != ink;
 }
 
 /// Ve song sang: moi o sang len roi tat theo do tre rieng.
