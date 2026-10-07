@@ -651,9 +651,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           automaticallyImplyLeading: false,
-          leading: wide
-              ? null
-              : BackButton(onPressed: () => context.go(_store.homeRoute)),
+          leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
           title: wide
               ? const Row(
                   mainAxisSize: MainAxisSize.min,
