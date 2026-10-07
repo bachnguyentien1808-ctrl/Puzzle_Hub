@@ -952,9 +952,9 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
           case 'home':
             context.go(_store.homeRoute);
           case 'stats':
-            context.go('/stats');
+            context.push('/stats');
           case 'settings':
-            context.go('/settings');
+            context.push('/settings');
           case 'help':
             showTutorial(context, _id);
           case 'limit':
