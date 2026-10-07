@@ -280,57 +280,71 @@ class FrostNavRail extends StatelessWidget {
       children: [
         for (final it in items)
           Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Material(
-              color: it.selected ? f.fill : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: it.onTap,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
+            padding: const EdgeInsets.only(bottom: 10),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: it.selected
+                    ? LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color.lerp(f.accent, Colors.white, .2)!,
+                          f.accent,
+                        ],
+                      )
+                    : null,
+                color: it.selected ? null : f.key,
+                border: Border.all(
+                  color: it.selected ? f.accent : f.border,
+                  width: 1.4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: (it.selected ? f.accent : const Color(0xFF102040))
+                        .withValues(alpha: it.selected ? .4 : .2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
-                  child: Row(
-                    children: [
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: it.color,
-                          shape: BoxShape.circle,
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x40000000),
-                              blurRadius: 6,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(7),
-                          child: Icon(it.icon, size: 18, color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          it.label,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: it.selected ? f.ink : Colors.white,
-                            shadows: it.selected
-                                ? null
-                                : const [
-                                    Shadow(
-                                      color: Color(0x99000000),
-                                      blurRadius: 6,
-                                    ),
-                                  ],
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: it.onTap,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 9,
+                    ),
+                    child: Row(
+                      children: [
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: it.color,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: Icon(it.icon, size: 20, color: Colors.white),
                           ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            it.label,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              color: it.selected ? f.onAccent : f.ink,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
