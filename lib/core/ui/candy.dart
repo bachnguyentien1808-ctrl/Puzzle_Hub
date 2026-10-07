@@ -70,16 +70,14 @@ class GameBackdropScope extends InheritedWidget {
 
 /// Chon file anh nen theo buoi, chi dung anh do nguoi dung cung cap.
 /// Man hinh chinh: bg_sky (ngay), bg_sky_dusk, bg_sky_night.
-/// Cac game: bg_game (ngay); chieu va dem dung chung anh chieu/dem cua man
-/// hinh chinh vi cung mot kieu canh dao bay.
+/// Cac game: bg_game (ngay), bg_game_dusk (chieu), bg_game_night (dem).
 abstract final class BackdropAssets {
   static const _dir = 'assets/images/';
 
   static String resolve(String dayAsset, DayPhase phase) {
     if (phase == DayPhase.day) return dayAsset;
     final base = dayAsset.replaceFirst(_dir, '').replaceFirst('.webp', '');
-    final scene = base == 'bg_game' ? 'bg_sky' : base;
-    return '$_dir$scene${phase.suffix}.webp';
+    return '$_dir$base${phase.suffix}.webp';
   }
 }
 
