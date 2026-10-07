@@ -641,18 +641,24 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   Widget build(BuildContext context) {
     final g = _game;
     final reduce = _reduce;
+    // Man rong da co menu trai (Trang chu, Huong dan) va nut Moi: bo cac nut
+    // trung lap tren AppBar.
+    final wide = g != null && MediaQuery.sizeOf(context).width >= _wideMin;
     return CandyBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
-          leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
+          automaticallyImplyLeading: false,
+          leading: wide
+              ? null
+              : BackButton(onPressed: () => context.go(_store.homeRoute)),
           title: Text(_daily ? 'Sudoku · Thử thách ngày' : 'Sudoku'),
           actions: [
             const ScoreChip(),
-            const HelpAction(gameId: 'sudoku'),
-            if (g != null && !_daily)
+            if (!wide) const HelpAction(gameId: 'sudoku'),
+            if (g != null && !_daily && !wide)
               IconButton(
                 tooltip: 'Ván mới',
                 icon: const Icon(Icons.add_box_outlined),
@@ -959,18 +965,25 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
                       const SizedBox(height: 10),
                       Row(
                         children: [
-                          _sideKey(Icons.backspace_outlined, 'Xoá', _erase),
+                          _sideKey(
+                            Icons.backspace_outlined,
+                            'Xoá',
+                            _erase,
+                            FrostColors.red,
+                          ),
                           const SizedBox(width: 10),
                           _sideKey(
                             Icons.lightbulb_outline,
                             'Gợi ý ${g.hintsLeft}',
                             g.hintsLeft > 0 ? _hint : null,
+                            FrostColors.amber,
                           ),
                           const SizedBox(width: 10),
                           _sideKey(
                             _notes ? Icons.edit : Icons.edit_outlined,
                             'Ghi chú',
                             _toggleNotes,
+                            FrostColors.purple,
                             selected: _notes,
                           ),
                         ],
@@ -995,27 +1008,32 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       FrostNavItem(
         icon: Icons.home_rounded,
         label: 'Trang chủ',
+        color: FrostColors.orange,
         onTap: () => context.go(_store.homeRoute),
       ),
       FrostNavItem(
         icon: Icons.grid_on,
         label: 'Sudoku',
+        color: FrostColors.purple,
         selected: true,
         onTap: () {},
       ),
       FrostNavItem(
         icon: Icons.bar_chart_rounded,
         label: 'Thống kê',
+        color: FrostColors.green,
         onTap: () => context.go('/stats'),
       ),
       FrostNavItem(
         icon: Icons.settings_rounded,
         label: 'Cài đặt',
+        color: FrostColors.blue,
         onTap: () => context.go('/settings'),
       ),
       FrostNavItem(
         icon: Icons.help_outline_rounded,
         label: 'Hướng dẫn',
+        color: FrostColors.pink,
         onTap: () => showTutorial(context, _id),
       ),
     ],
@@ -1029,6 +1047,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: FrostButton(
               key: ValueKey('sudoku-tab-${l.name}'),
+              tint: _levelTint(l),
               selected: l == g.level,
               radius: 20,
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
@@ -1050,11 +1069,19 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     ],
   );
 
+  Color _levelTint(SudokuLevel l) => switch (l) {
+    SudokuLevel.easy => FrostColors.green,
+    SudokuLevel.medium => FrostColors.blue,
+    SudokuLevel.hard => FrostColors.orange,
+    SudokuLevel.expert => FrostColors.red,
+  };
+
   Widget _bottomBar(SudokuGame g) {
     Widget btn(
       IconData icon,
       String label,
-      VoidCallback? onTap, {
+      VoidCallback? onTap,
+      Color tint, {
       bool primary = false,
     }) => Expanded(
       flex: primary ? 5 : 4,
@@ -1063,6 +1090,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
         child: SizedBox(
           width: double.infinity,
           child: FrostButton(
+            tint: tint,
             primary: primary,
             onPressed: onTap,
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
@@ -1083,13 +1111,25 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     );
     return Row(
       children: [
-        if (!_daily) btn(Icons.refresh_rounded, 'Mới', _openLevelSheet),
-        btn(Icons.undo, 'Hoàn tác', g.canUndo && !_paused ? _undo : null),
-        btn(Icons.redo, 'Làm lại', g.canRedo && !_paused ? _redo : null),
+        if (!_daily)
+          btn(Icons.refresh_rounded, 'Mới', _openLevelSheet, FrostColors.green),
+        btn(
+          Icons.undo,
+          'Hoàn tác',
+          g.canUndo && !_paused ? _undo : null,
+          FrostColors.blue,
+        ),
+        btn(
+          Icons.redo,
+          'Làm lại',
+          g.canRedo && !_paused ? _redo : null,
+          FrostColors.indigo,
+        ),
         btn(
           Icons.lightbulb_outline,
           'Gợi ý (${g.hintsLeft})',
           g.hintsLeft > 0 && !_paused ? _hint : null,
+          FrostColors.orange,
           primary: true,
         ),
       ],
@@ -1099,10 +1139,12 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   Widget _sideKey(
     IconData icon,
     String label,
-    VoidCallback? onTap, {
+    VoidCallback? onTap,
+    Color tint, {
     bool selected = false,
   }) => Expanded(
     child: FrostButton(
+      tint: tint,
       selected: selected,
       radius: 14,
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1125,7 +1167,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
     child: Row(
       children: [
-        Icon(Icons.timer_outlined, size: 34, color: f.accent),
+        const Icon(Icons.timer_outlined, size: 34, color: FrostColors.blue),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -1151,6 +1193,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
           ),
         ),
         FrostButton(
+          tint: FrostColors.orange,
           radius: 28,
           padding: const EdgeInsets.all(14),
           onPressed: g.isOver ? null : _togglePause,
@@ -1169,7 +1212,11 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
     child: Row(
       children: [
-        Icon(Icons.edit_note_rounded, size: 28, color: f.accent),
+        const Icon(
+          Icons.edit_note_rounded,
+          size: 28,
+          color: FrostColors.purple,
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -1219,11 +1266,11 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
+          const Row(
             children: [
-              Icon(Icons.emoji_events_outlined, color: f.accent),
-              const SizedBox(width: 8),
-              const Text(
+              Icon(Icons.emoji_events_outlined, color: FrostColors.amber),
+              SizedBox(width: 8),
+              Text(
                 'Thành tích',
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
               ),
@@ -1234,11 +1281,11 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
           row('Đã hoàn thành', '$won'),
           row('Tỷ lệ đúng', '$rate%'),
           const Divider(),
-          Row(
+          const Row(
             children: [
-              Icon(Icons.workspace_premium_outlined, color: f.accent),
-              const SizedBox(width: 8),
-              const Text(
+              Icon(Icons.workspace_premium_outlined, color: FrostColors.orange),
+              SizedBox(width: 8),
+              Text(
                 'Kỷ lục',
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
               ),

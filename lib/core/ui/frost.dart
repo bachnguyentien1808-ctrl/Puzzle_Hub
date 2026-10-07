@@ -4,6 +4,32 @@ import 'package:flutter/material.dart';
 import 'package:puzzle_hub/core/theme/day_phase.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 
+/// Bo mau tuoi dung cho nut / bieu tuong tren the kinh.
+abstract final class FrostColors {
+  static const green = Color(0xFF22B573);
+  static const blue = Color(0xFF2F80FF);
+  static const orange = Color(0xFFFF8A1F);
+  static const red = Color(0xFFEF4B5B);
+  static const purple = Color(0xFF8B5CF6);
+  static const teal = Color(0xFF0EB5C9);
+  static const pink = Color(0xFFEC4899);
+  static const amber = Color(0xFFF5A60B);
+  static const indigo = Color(0xFF5B5BE6);
+
+  /// Mau cho 9 phim so 1-9.
+  static const digits = [
+    blue,
+    green,
+    orange,
+    purple,
+    pink,
+    teal,
+    red,
+    amber,
+    indigo,
+  ];
+}
+
 /// Bang mau "kinh mo sang" (the trang bo tron, chu xanh dam) cua giao dien
 /// moi, doi theo buoi: ngay (trang), chieu (kem am), dem (xanh navy).
 class FrostStyle {
@@ -134,6 +160,7 @@ class FrostButton extends StatelessWidget {
     required this.onPressed,
     this.primary = false,
     this.selected = false,
+    this.tint,
     this.radius = 18,
     this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     super.key,
@@ -145,6 +172,10 @@ class FrostButton extends StatelessWidget {
 
   /// Dang duoc chon (vd. tab do kho hien tai): to mau nhan nhu nut chinh.
   final bool selected;
+
+  /// Mau rieng cua nut: nen pha nhe mau nay, chu/icon dam mau nay; khi chon
+  /// hoac [primary] thi to dac mau nay. null = mau nhan chung.
+  final Color? tint;
   final double radius;
   final EdgeInsetsGeometry padding;
 
@@ -152,7 +183,15 @@ class FrostButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final f = FrostStyle.of(context);
     final accent = primary || selected;
-    final fg = accent ? f.onAccent : f.ink;
+    final base = tint ?? f.accent;
+    final dark = f.ink.computeLuminance() > .5;
+    final fg = accent
+        ? f.onAccent
+        : tint == null
+        ? f.ink
+        : (dark
+              ? Color.lerp(tint, Colors.white, .35)!
+              : Color.lerp(tint, Colors.black, .3)!);
     return Opacity(
       opacity: onPressed == null ? 0.65 : 1,
       child: Material(
@@ -160,20 +199,24 @@ class FrostButton extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(radius),
-            color: accent ? null : f.key,
+            color: accent
+                ? null
+                : tint == null
+                ? f.key
+                : Color.alphaBlend(tint!.withValues(alpha: .16), f.key),
+            border: !accent && tint != null
+                ? Border.all(color: tint!.withValues(alpha: .5), width: 1.3)
+                : null,
             gradient: accent
                 ? LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Color.lerp(f.accent, Colors.white, .18)!,
-                      f.accent,
-                    ],
+                    colors: [Color.lerp(base, Colors.white, .2)!, base],
                   )
                 : null,
             boxShadow: [
               BoxShadow(
-                color: (accent ? f.accent : const Color(0xFF102040)).withValues(
+                color: (accent ? base : const Color(0xFF102040)).withValues(
                   alpha: accent ? .35 : .2,
                 ),
                 blurRadius: 10,
@@ -208,12 +251,16 @@ class FrostNavItem {
     required this.label,
     required this.onTap,
     this.selected = false,
+    this.color = Colors.white,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool selected;
+
+  /// Mau o tron cua bieu tuong.
+  final Color color;
 }
 
 class FrostNavRail extends StatelessWidget {
@@ -243,10 +290,22 @@ class FrostNavRail extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        it.icon,
-                        size: 22,
-                        color: it.selected ? f.accent : Colors.white,
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: it.color,
+                          shape: BoxShape.circle,
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x40000000),
+                              blurRadius: 6,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(7),
+                          child: Icon(it.icon, size: 18, color: Colors.white),
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(

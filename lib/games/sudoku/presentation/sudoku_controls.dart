@@ -62,17 +62,25 @@ class SudokuActions extends StatelessWidget {
         _Act(
           icon: Icons.undo,
           label: 'Hoàn tác',
+          tint: FrostColors.blue,
           onTap: canUndo ? onUndo : null,
         ),
         _Act(
           icon: Icons.redo,
           label: 'Làm lại',
+          tint: FrostColors.indigo,
           onTap: canRedo ? onRedo : null,
         ),
-        _Act(icon: Icons.backspace_outlined, label: 'Xoá', onTap: onErase),
+        _Act(
+          icon: Icons.backspace_outlined,
+          label: 'Xoá',
+          tint: FrostColors.red,
+          onTap: onErase,
+        ),
         _Act(
           icon: notesOn ? Icons.edit : Icons.edit_outlined,
           label: 'Ghi chú',
+          tint: FrostColors.purple,
           selected: notesOn,
           badge: notesOn ? 'BẬT' : 'TẮT',
           badgeColor: notesOn ? Candy.green.last : Colors.blueGrey,
@@ -81,6 +89,7 @@ class SudokuActions extends StatelessWidget {
         _Act(
           icon: Icons.lightbulb_outline,
           label: 'Gợi ý',
+          tint: FrostColors.amber,
           badge: '$hintsLeft',
           badgeColor: hintsLeft > 0 ? Candy.orange.last : Colors.blueGrey,
           onTap: hintsLeft > 0 ? onHint : null,
@@ -95,6 +104,7 @@ class _Act extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    required this.tint,
     this.selected = false,
     this.badge,
     this.badgeColor,
@@ -103,6 +113,7 @@ class _Act extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
+  final Color tint;
 
   /// Dang bat (vd. che do ghi chu): to mau nhan.
   final bool selected;
@@ -128,6 +139,7 @@ class _Act extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: FrostButton(
+            tint: tint,
             selected: selected,
             radius: 14,
             padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 7),
@@ -175,12 +187,13 @@ class _PadKey extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final f = FrostStyle.of(context);
+    final color = FrostColors.digits[(digit - 1) % 9];
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 250),
       opacity: remaining <= 0 ? 0.3 : 1,
       child: FrostButton(
         key: ValueKey('sudoku-pad-$digit'),
+        tint: color,
         radius: 14,
         padding: const EdgeInsets.symmetric(vertical: 4),
         onPressed: remaining <= 0 ? null : () => onDigit(digit),
@@ -196,7 +209,7 @@ class _PadKey extends StatelessWidget {
                   fontSize: notesOn ? 19 : 23,
                   height: 1.1,
                   fontWeight: FontWeight.w900,
-                  color: f.accent,
+                  color: color,
                 ),
               ),
               Text(
@@ -204,8 +217,8 @@ class _PadKey extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   height: 1.1,
-                  color: f.subInk,
-                  fontWeight: FontWeight.w700,
+                  color: color.withValues(alpha: .8),
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ],
