@@ -1050,52 +1050,51 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     ],
   );
 
-  Widget _bottomBar(SudokuGame g) => Row(
-    children: [
-      if (!_daily)
-        FrostButton(
-          onPressed: _openLevelSheet,
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.refresh_rounded),
-              SizedBox(width: 8),
-              Text('Mới'),
-            ],
+  Widget _bottomBar(SudokuGame g) {
+    Widget btn(
+      IconData icon,
+      String label,
+      VoidCallback? onTap, {
+      bool primary = false,
+    }) => Expanded(
+      flex: primary ? 5 : 4,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: SizedBox(
+          width: double.infinity,
+          child: FrostButton(
+            primary: primary,
+            onPressed: onTap,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon),
+                  const SizedBox(width: 6),
+                  Text(label, maxLines: 1),
+                ],
+              ),
+            ),
           ),
         ),
-      const SizedBox(width: 10),
-      FrostButton(
-        onPressed: g.canUndo && !_paused ? _undo : null,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [Icon(Icons.undo), SizedBox(width: 8), Text('Hoàn tác')],
-        ),
       ),
-      const SizedBox(width: 10),
-      FrostButton(
-        onPressed: g.canRedo && !_paused ? _redo : null,
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [Icon(Icons.redo), SizedBox(width: 8), Text('Làm lại')],
+    );
+    return Row(
+      children: [
+        if (!_daily) btn(Icons.refresh_rounded, 'Mới', _openLevelSheet),
+        btn(Icons.undo, 'Hoàn tác', g.canUndo && !_paused ? _undo : null),
+        btn(Icons.redo, 'Làm lại', g.canRedo && !_paused ? _redo : null),
+        btn(
+          Icons.lightbulb_outline,
+          'Gợi ý (${g.hintsLeft})',
+          g.hintsLeft > 0 && !_paused ? _hint : null,
+          primary: true,
         ),
-      ),
-      const Spacer(),
-      FrostButton(
-        primary: true,
-        onPressed: g.hintsLeft > 0 && !_paused ? _hint : null,
-        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 14),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.lightbulb_outline),
-            const SizedBox(width: 8),
-            Text('Gợi ý (${g.hintsLeft})'),
-          ],
-        ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 
   Widget _sideKey(
     IconData icon,

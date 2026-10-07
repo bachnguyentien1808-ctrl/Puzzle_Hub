@@ -33,7 +33,7 @@ class FrostStyle {
   static const day = FrostStyle(
     fill: Color(0xA3FFFFFF),
     border: Color(0xCCFFFFFF),
-    key: Color(0xE6FFFFFF),
+    key: Color(0xFFFFFFFF),
     ink: Color(0xFF1B2F57),
     subInk: Color(0xFF5D7096),
     accent: Color(0xFF2F6BFF),
@@ -43,7 +43,7 @@ class FrostStyle {
   static const dusk = FrostStyle(
     fill: Color(0xB3FFF3E6),
     border: Color(0xD9FFE6CC),
-    key: Color(0xEBFFF8F1),
+    key: Color(0xFFFFFBF6),
     ink: Color(0xFF47263A),
     subInk: Color(0xFF8A6070),
     accent: Color(0xFFE8602C),
@@ -154,7 +154,7 @@ class FrostButton extends StatelessWidget {
     final accent = primary || selected;
     final fg = accent ? f.onAccent : f.ink;
     return Opacity(
-      opacity: onPressed == null ? 0.5 : 1,
+      opacity: onPressed == null ? 0.65 : 1,
       child: Material(
         color: Colors.transparent,
         child: Ink(
@@ -174,7 +174,7 @@ class FrostButton extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: (accent ? f.accent : const Color(0xFF102040)).withValues(
-                  alpha: accent ? .35 : .12,
+                  alpha: accent ? .35 : .2,
                 ),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
