@@ -912,6 +912,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
           children: [
             SizedBox(
               width: outerW,
+              height: c.maxHeight - 20,
               child: Align(alignment: Alignment.topLeft, child: _rail()),
             ),
             const SizedBox(width: gap),
@@ -948,8 +949,6 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
                           children: [
                             _timerCard(g, f),
                             const SizedBox(height: gap),
-                            _notesCard(f),
-                            const SizedBox(height: gap),
                             _padCard(g, remaining),
                           ],
                         ),
@@ -962,6 +961,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
             const SizedBox(width: gap),
             SizedBox(
               width: outerW,
+              height: c.maxHeight - 20,
               child: showStats
                   ? Align(alignment: Alignment.topRight, child: _statsCard(f))
                   : null,
@@ -1208,36 +1208,6 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     ),
   );
 
-  Widget _notesCard(FrostStyle f) => FrostCard(
-    padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
-    child: Row(
-      children: [
-        const Icon(
-          Icons.edit_note_rounded,
-          size: 28,
-          color: FrostColors.purple,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Ghi chú',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-              ),
-              Text(
-                'Bật để ghi số ứng viên vào ô.',
-                style: TextStyle(color: f.subInk, fontSize: 12),
-              ),
-            ],
-          ),
-        ),
-        Switch(value: _notes, onChanged: (_) => _toggleNotes()),
-      ],
-    ),
-  );
-
   Widget _statsCard(FrostStyle f) {
     Widget row(String k, String v) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -1246,10 +1216,21 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
           Expanded(
             child: Text(
               k,
-              style: TextStyle(color: f.subInk, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                color: f.ink,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
             ),
           ),
-          Text(v, style: const TextStyle(fontWeight: FontWeight.w900)),
+          Text(
+            v,
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 17,
+              color: f.accent,
+            ),
+          ),
         ],
       ),
     );
@@ -1262,6 +1243,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     }
     final rate = played == 0 ? 0 : (won * 100 / played).round();
     return FrostCard(
+      strong: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -1272,7 +1254,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
               SizedBox(width: 8),
               Text(
                 'Thành tích',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
               ),
             ],
           ),
@@ -1287,7 +1269,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
               SizedBox(width: 8),
               Text(
                 'Kỷ lục',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
               ),
             ],
           ),

@@ -109,12 +109,16 @@ class FrostCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(16),
     this.radius = 24,
+    this.strong = false,
     super.key,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double radius;
+
+  /// Nen dac hon (de doc, noi bat): dung cho bang thanh tich.
+  final bool strong;
 
   @override
   Widget build(BuildContext context) {
@@ -137,7 +141,7 @@ class FrostCard extends StatelessWidget {
           child: Container(
             padding: padding,
             decoration: BoxDecoration(
-              color: f.fill,
+              color: strong ? f.key.withValues(alpha: .93) : f.fill,
               borderRadius: BorderRadius.circular(radius),
               border: Border.all(color: f.border, width: 1.4),
             ),
