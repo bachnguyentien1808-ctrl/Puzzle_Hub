@@ -44,62 +44,66 @@ class FrostWideShell extends ConsumerWidget {
         if (c.maxWidth < frostWideMin) return child;
         final showStats = c.maxWidth >= frostStatsMin;
         final outerW = showStats ? 250.0 : 190.0;
-        return Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 64, 20, 20),
-              child: Row(
-                children: [
-                  SizedBox(width: outerW, child: const _Quote()),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 820),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(32),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: _cardFill(phase),
-                                borderRadius: BorderRadius.circular(32),
-                                border: Border.all(
-                                  color: Colors.white.withValues(alpha: .5),
-                                  width: 1.4,
+        // Material trong suot: chu ngoai Scaffold khong bi gach chan vang.
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 64, 20, 20),
+                child: Row(
+                  children: [
+                    SizedBox(width: outerW, child: const _Quote()),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 820),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(32),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: _cardFill(phase),
+                                  borderRadius: BorderRadius.circular(32),
+                                  border: Border.all(
+                                    color: Colors.white.withValues(alpha: .5),
+                                    width: 1.4,
+                                  ),
                                 ),
+                                child: child,
                               ),
-                              child: child,
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    width: outerW,
-                    child: showStats
-                        ? Align(
-                            alignment: Alignment.topRight,
-                            child: _StatsCard(gameId: gameId),
-                          )
-                        : null,
-                  ),
-                ],
+                    const SizedBox(width: 16),
+                    SizedBox(
+                      width: outerW,
+                      child: showStats
+                          ? Align(
+                              alignment: Alignment.topRight,
+                              child: _StatsCard(gameId: gameId),
+                            )
+                          : null,
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Positioned(
-              top: 8,
-              right: 16,
-              child: Row(
-                children: [
-                  const _MoonButton(),
-                  _GearMenu(gameId: gameId, onHelp: onHelp),
-                ],
+              Positioned(
+                top: 8,
+                right: 16,
+                child: Row(
+                  children: [
+                    const _MoonButton(),
+                    _GearMenu(gameId: gameId, onHelp: onHelp),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         );
       },
     );
