@@ -8,6 +8,7 @@ import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/settings/app_settings.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
+import 'package:puzzle_hub/core/ui/frost.dart';
 import 'package:puzzle_hub/core/ui/game_logo.dart';
 import 'package:puzzle_hub/features/common/shell_widgets.dart';
 import 'package:puzzle_hub/features/daily/daily_screen.dart';
@@ -614,11 +615,13 @@ class _FilterBar extends StatelessWidget {
           for (final (i, c) in GameCategory.values.indexed)
             Padding(
               padding: const EdgeInsets.only(right: 10),
-              child: CandyButton(
+              // Nut dang chon to dac mau (chu trang); nut con lai nen trang
+              // mo chu mau dam, khong lam mo them.
+              child: FrostButton(
                 onPressed: () => onChanged(c),
-                colors: _palette[i % _palette.length],
-                dim: c != value,
-                radius: 18,
+                tint: _palette[i % _palette.length].last,
+                selected: c == value,
+                opaque: true,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 8,

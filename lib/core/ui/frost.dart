@@ -165,6 +165,7 @@ class FrostButton extends StatelessWidget {
     this.primary = false,
     this.selected = false,
     this.tint,
+    this.opaque = false,
     this.radius = 18,
     this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     super.key,
@@ -180,6 +181,9 @@ class FrostButton extends StatelessWidget {
   /// Mau rieng cua nut: nen pha nhe mau nay, chu/icon dam mau nay; khi chon
   /// hoac [primary] thi to dac mau nay. null = mau nhan chung.
   final Color? tint;
+
+  /// Nen tint gan nhu dac (de doc tren nen anh ruc ro) thay vi kinh mo.
+  final bool opaque;
   final double radius;
   final EdgeInsetsGeometry padding;
 
@@ -208,7 +212,9 @@ class FrostButton extends StatelessWidget {
         ? f.key
         : Color.alphaBlend(
             tint!.withValues(alpha: dark ? .34 : .18),
-            dark ? const Color(0xF2141E4C) : const Color(0x99FFFFFF),
+            dark
+                ? const Color(0xF2141E4C)
+                : Color(opaque ? 0xF5FFFFFF : 0x99FFFFFF),
           );
     return Opacity(
       opacity: onPressed == null ? (dark ? 0.75 : 0.6) : 1,
