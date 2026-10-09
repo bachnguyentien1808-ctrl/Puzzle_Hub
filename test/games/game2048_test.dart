@@ -158,6 +158,9 @@ void main() {
 
     testWidgets('vuot doi diem, nut hoan tac, hoi khi van moi', (tester) async {
       final store = await pump(tester);
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(5, 5)); // đóng bảng chọn của ván mới
+      await tester.pumpAndSettle();
       expect(find.text('2048  4x4'), findsOneWidget);
       expect(find.byKey(const ValueKey('undo')), findsOneWidget);
       var moved = false;

@@ -59,7 +59,7 @@ final gameRegistry = <GameInfo>[
     howTo:
         'Điền số 1-9 vào mỗi ô trống sao cho mỗi hàng, mỗi cột và mỗi khối '
         '3x3 đều có đủ chín số, không trùng. Chạm một ô rồi chọn số ở bàn '
-        'phím bên dưới; bật Ghi chú để viết số nháp nhỏ trong ô. Sai quá 3 '
+        'phím bên dưới; trên máy tính nhấn phím N để ghi số nháp nhỏ. Sai quá 3 '
         'lần là thua (có thể tắt trong menu). Gợi ý có giới hạn sẽ giải '
         'thích vì sao ô đó phải là số ấy.',
   ),
@@ -109,10 +109,10 @@ final gameRegistry = <GameInfo>[
     dailyBuilder: (d) => MinesweeperScreen(daily: d),
     howTo:
         'Chạm để mở ô; số trên ô là số mìn ở 8 ô xung quanh. Nhấn giữ (hoặc '
-        'chuột phải, hoặc chế độ Cắm cờ) để cắm cờ lên ô nghi có mìn. Chạm vào '
+        'chuột phải) để cắm cờ lên ô nghi có mìn. Chạm vào '
         'số đã đủ cờ để mở nhanh các ô kề. Lượt mở đầu luôn an toàn. Có 3 lượt '
         'gợi ý mỗi ván (chỉ ra một ô chắc chắn an toàn nếu suy ra được). Chọn '
-        'Dễ, Vừa, Khó hoặc Tuỳ chỉnh ở biểu tượng chỉnh; mỗi mức có kỷ lục riêng. '
+        'Dễ, Vừa, Khó hoặc Tuỳ chỉnh khi bấm Ván mới; mỗi mức có kỷ lục riêng. '
         'Mở hết ô an toàn là thắng.',
     bestKind: BestKind.seconds,
   ),
@@ -127,7 +127,7 @@ final gameRegistry = <GameInfo>[
         'Bấm một ô sẽ đảo trạng thái ô đó và 4 ô kề bên (trên, dưới, trái, phải). '
         'Mục tiêu: tắt hết đèn với ít lượt nhất. Chế độ Màn chơi có 36 màn từ 3x3 đến 6x6, '
         'đạt 3 sao khi số lượt không vượt mức tối ưu (2 sao nếu hơn tối đa 3 lượt). '
-        'Dùng Hoàn tác/Làm lại để thử hướng khác và Gợi ý (3 lần mỗi ván) để biết ô nên bấm tiếp.',
+        'Dùng Hoàn tác để thử hướng khác và Gợi ý (3 lần mỗi ván) để biết ô nên bấm tiếp.',
     bestKind: BestKind.moves,
   ),
   GameInfo(
@@ -157,7 +157,7 @@ final gameRegistry = <GameInfo>[
         'Ô tối có đường chéo là ô gợi ý: số góc trên-phải là tổng các ô trắng '
         'liền bên phải, số góc dưới-trái là tổng các ô trắng liền bên dưới. '
         'Điền chữ số 1-9 vào ô trắng; trong mỗi đoạn các số không được trùng '
-        'và phải cộng đúng tổng. Đoạn đúng tô xanh, ô lỗi tô đỏ. Có ghi chú '
-        'bút chì, hoàn tác và vài lượt gợi ý; kỷ lục thời gian tính theo mức.',
+        'và phải cộng đúng tổng. Đoạn đúng tô xanh, ô lỗi tô đỏ. Có tạm dừng, '
+        'hoàn tác và vài lượt gợi ý; kỷ lục thời gian tính theo mức.',
   ),
 ];

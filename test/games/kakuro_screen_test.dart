@@ -36,6 +36,9 @@ Future<void> _unmount(WidgetTester tester) async {
 void main() {
   testWidgets('ván mới: điền số thì lưu ván, có hoàn tác', (tester) async {
     final prefs = await _pump(tester, {});
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(5, 5)); // đóng bảng chọn của ván mới
+    await tester.pumpAndSettle();
     expect(find.text('Kakuro'), findsOneWidget);
     expect(prefs.getString('state.kakuro'), isNotNull);
     await tester.tap(find.byKey(const ValueKey('kakuro-num-7')));
@@ -46,6 +49,24 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     final st2 = jsonDecode(prefs.getString('state.kakuro')!) as Map;
     expect((st2['v'] as List).contains(7), isFalse);
+    await _unmount(tester);
+  });
+
+  testWidgets('ván mới: hỏi xác nhận rồi chọn mức Khó', (tester) async {
+    final prefs = await _pump(tester, {});
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(5, 5)); // đóng bảng chọn của ván mới
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Ván mới'));
+    await tester.pumpAndSettle();
+    expect(find.text('Làm mới ván chơi?'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('confirm-yes')));
+    await tester.pumpAndSettle();
+    expect(find.text('Chọn mức chơi'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('kakuro-level-2')));
+    await tester.pumpAndSettle();
+    final st = jsonDecode(prefs.getString('state.kakuro')!) as Map;
+    expect(st['lv'], 2);
     await _unmount(tester);
   });
 

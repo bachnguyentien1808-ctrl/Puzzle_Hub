@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -10,15 +11,18 @@ import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/core/ui/game_action_button.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/confirm_new_game.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
+import 'package:puzzle_hub/features/common/pause_cover.dart';
 import 'package:puzzle_hub/games/minesweeper/domain/minesweeper_engine.dart';
 
 const _id = 'minesweeper';
 const _prefsId = 'minesweeper.prefs';
 const _maxHints = 3;
-const _minCell = 32.0;
 
 /// Mau so 1-8 tren nen kem cua o da mo.
 const _numColors = [
@@ -56,9 +60,10 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   int _seconds = 0;
   int _hintsUsed = 0;
   bool _moved = false;
-  bool _flagMode = false;
   int? _points;
   bool _resumed = true;
+  bool _paused = false;
+  final List<String> _undo = [];
   int _gen = 0;
   int? _hint;
   final Map<int, Duration> _delays = {};
@@ -95,9 +100,15 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
       _game = restored;
     } else {
       _newGame(level: _level, silent: true);
+      // Ván mới: cho chọn độ khó trước khi chơi.
+      if (!_daily) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _pickLevel();
+        });
+      }
     }
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || !_moved || _game.over || !_resumed) return;
+      if (!mounted || !_moved || _game.over || !_resumed || _paused) return;
       setState(() => _seconds++);
       if (_seconds % 5 == 0) _save();
     });
@@ -136,6 +147,8 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     _delays.clear();
     _hint = null;
     _seconds = 0;
+    _paused = false;
+    _undo.clear();
     _hintsUsed = 0;
     _points = null;
     _moved = false;
@@ -156,7 +169,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
               mines: _level.mines,
             );
     }
-    if (!silent) Sfx.play(SfxKind.tap);
+    if (!silent) Sfx.play(SfxKind.newGame);
     _savePrefs();
     _save();
   }
@@ -185,8 +198,35 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
 
   bool get _reduce => MediaQuery.disableAnimationsOf(context);
 
-  void _act(int r, int c, {required bool flag}) {
+  void _togglePause() {
     if (_game.over) return;
+    setState(() => _paused = !_paused);
+    Sfx.play(_paused ? SfxKind.pause : SfxKind.resume);
+    if (_paused) _save();
+  }
+
+  String _snapshot() => jsonEncode(_game.toJson());
+
+  bool get _canUndo => _undo.isNotEmpty && !_game.over && !_paused;
+
+  void _restore(String snap) {
+    _game = Minesweeper.fromJson(jsonDecode(snap) as Map<String, dynamic>);
+    _gen++;
+    _delays.clear();
+    _hint = null;
+  }
+
+  void _undoMove() {
+    if (!_canUndo) return;
+    setState(() => _restore(_undo.removeLast()));
+    Sfx.play(SfxKind.erase);
+    GameFx.tap();
+    _save();
+  }
+
+  void _act(int r, int c, {required bool flag}) {
+    if (_game.over || _paused) return;
+    final before = _snapshot();
     final cell = _game.cells[r][c];
     var opened = const <(int, int)>[];
     var flagged = false;
@@ -213,7 +253,10 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
       if (_game.won) _finishWin();
     });
     if (_game.lost) {
-      Sfx.play(SfxKind.error);
+      Sfx.play(SfxKind.boom);
+      Future<void>.delayed(const Duration(milliseconds: 700), () {
+        if (mounted) Sfx.play(SfxKind.lose);
+      });
       GameFx.error();
       _shake.currentState?.shake();
       _recordLoss();
@@ -227,8 +270,13 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
       _store.clearState(_id);
       return;
     }
+    if (flagged || opened.isNotEmpty) {
+      _undo.add(before);
+      if (_undo.length > 200) _undo.removeAt(0);
+      setState(() {});
+    }
     if (flagged) {
-      Sfx.play(SfxKind.place);
+      Sfx.play(SfxKind.flag);
       GameFx.tap();
     } else if (opened.isNotEmpty) {
       Sfx.play(SfxKind.flip);
@@ -329,7 +377,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   }
 
   void _useHint() {
-    if (_game.over) return;
+    if (_game.over || _paused) return;
     void say(String m) => ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(m)));
@@ -346,7 +394,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
       );
       return;
     }
-    Sfx.play(SfxKind.tap);
+    Sfx.play(SfxKind.hint);
     setState(() {
       _hint = h.$1 * _game.cols + h.$2;
       _hintsUsed++;
@@ -358,11 +406,18 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     });
   }
 
+  /// Hỏi xác nhận trước khi bỏ ván đang chơi (ván đã kết thúc thì không hỏi).
+  Future<void> _guard(VoidCallback action) async {
+    if (!_game.over && !await confirmNewGame(context)) return;
+    if (mounted) action();
+  }
+
   Future<void> _pickLevel() async {
     final pick = await showModalBottomSheet<(MineLevel, _Custom)>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      backgroundColor: Candy.bgTop,
       builder: (_) => _LevelSheet(
         current: _level,
         custom: _custom,
@@ -379,7 +434,6 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   @override
   Widget build(BuildContext context) {
     final s = Theme.of(context).colorScheme;
-    final t = Theme.of(context).textTheme;
     final best = _daily || _level == MineLevel.custom
         ? null
         : _store.stats(_level.statsId).best;
@@ -388,131 +442,143 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
         : _game.lost
         ? Icons.sentiment_very_dissatisfied
         : Icons.sentiment_satisfied;
+    // Khung tu chinh theo hinh dang ban: ban rong (nhieu cot) thi khung rong,
+    // thap; ban vuong thi khung gan vuong. Ban luon hien du, khong cuon.
+    final screen = MediaQuery.sizeOf(context);
+    final aspect = _game.cols / _game.rows;
+    final narrow = screen.width < 600;
+    final boardH = narrow
+        ? ((screen.width - 70) / aspect).clamp(220.0, 400.0)
+        : min<double>(
+            min<double>(660, screen.height - 320),
+            (screen.width - 150) / aspect,
+          ).clamp(220.0, 660.0);
+    final blockW = narrow
+        ? screen.width
+        : (boardH * aspect + 90).clamp(520.0, 1200.0);
+    final blockH = boardH + 300;
     return CandyBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
-          leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
-          title: Text(
-            _game.won
-                ? 'Dò mìn - Thắng!'
-                : _game.lost
-                ? 'Dò mìn - Nổ mìn'
-                : 'Dò mìn',
-          ),
-          actions: [
-            const ScoreChip(),
-            const HelpAction(gameId: 'minesweeper'),
-            IconButton(
-              key: const Key('hint'),
-              tooltip: 'Gợi ý (còn ${_maxHints - _hintsUsed})',
-              icon: const Icon(Icons.lightbulb_outline),
-              onPressed: _useHint,
-            ),
-            if (!_daily)
-              IconButton(
-                key: const Key('level'),
-                tooltip: 'Độ khó',
-                icon: const Icon(Icons.tune),
-                onPressed: _pickLevel,
-              ),
-          ],
+          foregroundColor: Colors.white,
+          actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
         ),
         body: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
+            constraints: BoxConstraints(maxWidth: blockW, maxHeight: blockH),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Column(
-                children: [
-                  GlassBar(
-                    children: [
-                      GlassStat(
-                        icon: Icons.flag,
-                        colors: Candy.red,
-                        text: '${_game.flagsLeft}',
-                      ),
-                      CandyButton(
-                        key: const Key('smiley'),
-                        onPressed: () => setState(_newGame),
-                        colors: Candy.orange,
-                        circle: true,
-                        padding: const EdgeInsets.all(8),
-                        child: Tooltip(
-                          message: _daily ? 'Chơi lại cùng đề' : 'Ván mới',
-                          child: Icon(face, size: 34),
-                        ),
-                      ),
-                      GlassStat(
-                        icon: Icons.timer_outlined,
-                        text: '$_seconds s',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  CandyRibbon(
-                    text: _daily
-                        ? 'Thử thách ngày · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
-                        : '${_level.label} · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
-                              '${best == null ? '' : ' · Kỷ lục: $best s'}',
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(child: _board(s)),
-                  const SizedBox(height: 8),
-                  GlassPanel(
-                    padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 12),
+              child: GameBlock(
+                expand: true,
+                title: _game.won
+                    ? 'Dò mìn - Thắng!'
+                    : _game.lost
+                    ? 'Dò mìn - Nổ mìn'
+                    : 'Dò mìn',
+                onBack: () => context.go(_store.homeRoute),
+                child: Column(
+                  children: [
+                    GlassBar(
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CandyButton(
-                              onPressed: () =>
-                                  setState(() => _flagMode = false),
-                              dim: _flagMode,
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.touch_app),
-                                  SizedBox(width: 6),
-                                  Text('Mở ô'),
-                                ],
+                        Expanded(
+                          child: Center(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: GlassStat(
+                                icon: Icons.flag,
+                                colors: Candy.red,
+                                text: '${_game.flagsLeft}',
                               ),
                             ),
-                            const SizedBox(width: 14),
-                            CandyButton(
-                              onPressed: () => setState(() => _flagMode = true),
-                              colors: Candy.orange,
-                              dim: !_flagMode,
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.flag),
-                                  SizedBox(width: 6),
-                                  Text('Cắm cờ'),
-                                ],
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Nhấn giữ cắm cờ · Chạm số đủ cờ để mở các ô kề',
-                          textAlign: TextAlign.center,
-                          style: t.bodySmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            shadows: const [
-                              Shadow(color: Color(0x99000000), blurRadius: 3),
-                            ],
+                        Tooltip(
+                          message: _daily ? 'Chơi lại cùng đề' : 'Ván mới',
+                          child: CandyButton(
+                            key: const Key('smiley'),
+                            onPressed: () => _guard(() => setState(_newGame)),
+                            colors: Candy.orange,
+                            circle: true,
+                            padding: const EdgeInsets.all(8),
+                            child: Icon(face, size: 34),
+                          ),
+                        ),
+                        Expanded(
+                          child: Center(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: GlassStat(
+                                icon: Icons.timer_outlined,
+                                text: '$_seconds s',
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    CandyRibbon(
+                      text: _daily
+                          ? 'Thử thách ngày · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
+                          : '${_level.label} · ${_game.rows}x${_game.cols} · ${_game.mines} mìn'
+                                '${best == null ? '' : ' · Kỷ lục: $best s'}',
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(child: _board(s)),
+                    const SizedBox(height: 8),
+                    GlassPanel(
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _tool(
+                                Icons.undo,
+                                'Hoàn tác',
+                                Candy.blue,
+                                _canUndo ? _undoMove : null,
+                                key: const Key('undo'),
+                              ),
+                              _tool(
+                                Icons.lightbulb_outline,
+                                'Gợi ý (còn ${_maxHints - _hintsUsed})',
+                                Candy.teal,
+                                _useHint,
+                                key: const Key('hint'),
+                              ),
+                              _tool(
+                                _paused
+                                    ? Icons.play_arrow_rounded
+                                    : Icons.pause_rounded,
+                                _paused ? 'Tiếp tục' : 'Tạm dừng',
+                                Candy.orange,
+                                _game.over ? null : _togglePause,
+                                dim: _paused,
+                                key: const Key('pause-btn'),
+                              ),
+                              _tool(
+                                Icons.refresh_rounded,
+                                _daily ? 'Chơi lại cùng đề' : 'Ván mới',
+                                Candy.green,
+                                // Ván mới: hỏi xác nhận, rồi chọn độ khó (đề ngày: chơi lại).
+                                () => _guard(
+                                  _daily
+                                      ? () => setState(_newGame)
+                                      : _pickLevel,
+                                ),
+                                key: const Key('new-game'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -521,16 +587,37 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     );
   }
 
+  /// Nút tròn chỉ có biểu tượng; rê chuột vào sẽ hiện tên (tooltip).
+  Widget _tool(
+    IconData icon,
+    String label,
+    List<Color> colors,
+    VoidCallback? onPressed, {
+    bool dim = false,
+    Key? key,
+  }) {
+    return GameActionButton(
+      icon: icon,
+      tooltip: label,
+      colors: colors,
+      onPressed: onPressed,
+      dim: dim,
+      buttonKey: key,
+    );
+  }
+
   Widget _board(ColorScheme s) {
     return LayoutBuilder(
       builder: (context, box) {
-        final fit = (box.maxWidth - 40) / _game.cols;
-        final cell = fit.clamp(_minCell, 46.0);
+        // Vua khit khung: o nho lai de hien tron ban, khong cuon / thu phong.
+        final fit = min(
+          (box.maxWidth - 36) / _game.cols,
+          (box.maxHeight - 36) / _game.rows,
+        );
+        final cell = fit.clamp(8.0, 56.0);
         final w = cell * _game.cols;
         final h = cell * _game.rows;
         final reduce = _reduce;
-        final boardW = max(box.maxWidth, w + 40);
-        final boardH = max(box.maxHeight, h + 40);
         final grid = CandyFrame(
           child: SizedBox(
             width: w,
@@ -553,22 +640,10 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
             Positioned.fill(
               child: Shake(
                 key: _shake,
-                child: ClipRect(
-                  child: InteractiveViewer(
-                    key: ValueKey('viewer-$_gen'),
-                    constrained: false,
-                    minScale: 0.5,
-                    maxScale: 3,
-                    boundaryMargin: const EdgeInsets.all(24),
-                    child: SizedBox(
-                      width: boardW,
-                      height: boardH,
-                      child: Center(child: grid),
-                    ),
-                  ),
-                ),
+                child: Center(child: grid),
               ),
             ),
+            if (_paused) PauseCover(onResume: _togglePause),
             Positioned.fill(
               child: WinBanner(
                 show: _game.won,
@@ -593,7 +668,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     return GestureDetector(
       key: Key('cell-$r-$c'),
       behavior: HitTestBehavior.opaque,
-      onTap: () => _act(r, c, flag: _flagMode),
+      onTap: () => _act(r, c, flag: false),
       onLongPress: () => _act(r, c, flag: true),
       onSecondaryTap: () => _act(r, c, flag: true),
       child: _Tile(
@@ -869,16 +944,14 @@ class _LevelSheetState extends State<_LevelSheet> {
   void _pop(MineLevel l) =>
       Navigator.of(context).pop((l, (rows: _rows, cols: _cols, mines: _mines)));
 
-  String _levelInfo(MineLevel l) {
-    final st = widget.statsOf(l);
-    return '${l.rows}x${l.cols} · ${l.mines} mìn'
-        '${st.best == null ? '' : ' · Kỷ lục ${st.best} s'}'
-        '${st.played == 0 ? '' : '\nThắng ${st.won}/${st.played} (${st.winRate}%)'
-                  ' · Chuỗi ${st.streak} (cao nhất ${st.bestStreak})'}';
-  }
-
   void _clampMines() =>
       _mines = _mines.clamp(1, Minesweeper.maxMinesFor(_rows, _cols));
+
+  static List<Color> _colorsOf(MineLevel l) => switch (l) {
+    MineLevel.easy => Candy.green,
+    MineLevel.medium => Candy.orange,
+    _ => Candy.red,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -887,73 +960,150 @@ class _LevelSheetState extends State<_LevelSheet> {
     return SafeArea(
       child: SingleChildScrollView(
         padding: EdgeInsets.only(
-          left: 16,
-          right: 16,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + 12,
+          left: 18,
+          right: 18,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + 14,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final l in [MineLevel.easy, MineLevel.medium, MineLevel.hard])
-              ListTile(
-                key: Key('level-${l.key}'),
-                selected: widget.current == l,
-                leading: Icon(
-                  widget.current == l
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_off,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Center(
+                  child: CandyRibbon(text: 'Chọn độ khó', colors: Candy.red),
                 ),
-                title: Text(l.label),
-                isThreeLine: widget.statsOf(l).played > 0,
-                subtitle: Text(_levelInfo(l)),
-                onTap: () => _pop(l),
-              ),
-            const Divider(),
-            Text('Tuỳ chỉnh', style: Theme.of(context).textTheme.titleMedium),
-            _slider(
-              'Hàng',
-              _rows,
-              Minesweeper.minSide,
-              Minesweeper.maxRows,
-              (v) => setState(() {
-                _rows = v;
-                _clampMines();
-              }),
+                const SizedBox(height: 14),
+                for (final l in [
+                  MineLevel.easy,
+                  MineLevel.medium,
+                  MineLevel.hard,
+                ]) ...[_levelCard(l), const SizedBox(height: 10)],
+                const SizedBox(height: 4),
+                _customPanel(err, maxMines),
+              ],
             ),
-            _slider(
-              'Cột',
-              _cols,
-              Minesweeper.minSide,
-              Minesweeper.maxCols,
-              (v) => setState(() {
-                _cols = v;
-                _clampMines();
-              }),
-            ),
-            _slider(
-              'Mìn',
-              _mines,
-              1,
-              maxMines,
-              (v) => setState(() => _mines = v),
-            ),
-            if (err != null)
-              Text(
-                err,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                key: const Key('level-custom'),
-                onPressed: err == null ? () => _pop(MineLevel.custom) : null,
-                child: Text('Bắt đầu $_rows x $_cols · $_mines mìn'),
-              ),
-            ),
-          ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _levelCard(MineLevel l) {
+    final st = widget.statsOf(l);
+    final selected = widget.current == l;
+    final info = StringBuffer('${l.rows}x${l.cols} · ${l.mines} mìn');
+    if (st.best != null) info.write(' · Kỷ lục ${st.best} s');
+    final sub = st.played == 0
+        ? null
+        : 'Thắng ${st.won}/${st.played} (${st.winRate}%) · '
+              'Chuỗi ${st.streak} (cao nhất ${st.bestStreak})';
+    return CandyButton(
+      key: Key('level-${l.key}'),
+      colors: _colorsOf(l),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      onPressed: () => _pop(l),
+      child: Row(
+        children: [
+          Icon(
+            selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+            size: 28,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l.label,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(info.toString(), style: const TextStyle(fontSize: 13)),
+                if (sub != null)
+                  Text(sub, style: const TextStyle(fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _customPanel(String? err, int maxMines) {
+    return GlassPanel(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.tune, color: Colors.white),
+              SizedBox(width: 8),
+              Text(
+                'Tuỳ chỉnh',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          _slider(
+            'Hàng',
+            _rows,
+            Minesweeper.minSide,
+            Minesweeper.maxRows,
+            (v) => setState(() {
+              _rows = v;
+              _clampMines();
+            }),
+          ),
+          _slider(
+            'Cột',
+            _cols,
+            Minesweeper.minSide,
+            Minesweeper.maxCols,
+            (v) => setState(() {
+              _cols = v;
+              _clampMines();
+            }),
+          ),
+          _slider(
+            'Mìn',
+            _mines,
+            1,
+            maxMines,
+            (v) => setState(() => _mines = v),
+          ),
+          if (err != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                err,
+                style: const TextStyle(
+                  color: Color(0xFFFFB4AB),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          const SizedBox(height: 10),
+          CandyButton(
+            key: const Key('level-custom'),
+            colors: Candy.purple,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            onPressed: err == null ? () => _pop(MineLevel.custom) : null,
+            dim: err != null,
+            child: Text(
+              'Bắt đầu $_rows x $_cols · $_mines mìn',
+              style: const TextStyle(fontSize: 17),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -967,18 +1117,54 @@ class _LevelSheetState extends State<_LevelSheet> {
   ) {
     return Row(
       children: [
-        SizedBox(width: 48, child: Text(label)),
-        Expanded(
-          child: Slider(
-            value: value.toDouble().clamp(min.toDouble(), max.toDouble()),
-            min: min.toDouble(),
-            max: max.toDouble(),
-            divisions: max - min,
-            label: '$value',
-            onChanged: (v) => onChanged(v.round()),
+        SizedBox(
+          width: 50,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ),
-        SizedBox(width: 32, child: Text('$value', textAlign: TextAlign.end)),
+        Expanded(
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              activeTrackColor: Candy.gold,
+              inactiveTrackColor: Colors.white30,
+              thumbColor: Colors.white,
+              overlayColor: Colors.white24,
+              activeTickMarkColor: Colors.transparent,
+              inactiveTickMarkColor: Colors.transparent,
+              valueIndicatorColor: Candy.brown,
+            ),
+            child: Slider(
+              value: value.toDouble().clamp(min.toDouble(), max.toDouble()),
+              min: min.toDouble(),
+              max: max.toDouble(),
+              divisions: max - min,
+              label: '$value',
+              onChanged: (v) => onChanged(v.round()),
+            ),
+          ),
+        ),
+        Container(
+          width: 44,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black26,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$value',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 16,
+            ),
+          ),
+        ),
       ],
     );
   }

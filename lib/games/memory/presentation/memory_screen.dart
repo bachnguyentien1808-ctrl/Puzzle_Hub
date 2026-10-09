@@ -10,9 +10,14 @@ import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/core/ui/game_action_button.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/card_close_button.dart';
+import 'package:puzzle_hub/features/common/confirm_new_game.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/game_overlays.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/memory/domain/memory_engine.dart';
 import 'package:puzzle_hub/games/memory/presentation/memory_card_view.dart';
 
@@ -109,6 +114,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   }
 
   void _startNew(MemorySize size, MemorySet set) {
+    Sfx.play(SfxKind.newGame);
     _cancelTimers();
     setState(() {
       _game = _create(size, set);
@@ -125,16 +131,17 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   }
 
   Future<void> _openSetup() async {
-    final r = await showModalBottomSheet<(MemorySize, MemorySet)>(
+    final r = await showDialog<(MemorySize, MemorySet)>(
       context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
+      barrierColor: Colors.black54,
       builder: (_) => _SetupSheet(size: _game.size, set: _game.set),
     );
     if (r != null && mounted) _startNew(r.$1, r.$2);
   }
 
-  void _restart() {
+  Future<void> _restart() async {
+    if (!_game.won && !await confirmNewGame(context)) return;
+    if (!mounted) return;
     if (_isDaily) {
       _startNew(MemorySize.s4x4, MemorySet.icons);
     } else {
@@ -221,7 +228,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
 
   void _peek() {
     if (_locked || _game.waiting || !_game.usePeek()) return;
-    Sfx.play(SfxKind.flip);
+    Sfx.play(SfxKind.hint);
     setState(() => _peeking = true);
     _save();
     _peekTimer?.cancel();
@@ -233,6 +240,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   void _togglePause() {
     if (_game.won) return;
     setState(() => _paused = !_paused);
+    Sfx.play(_paused ? SfxKind.pause : SfxKind.resume);
     if (_paused) _save();
   }
 
@@ -247,42 +255,43 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
-        title: Text(_isDaily ? 'Tìm cặp - Thử thách ngày' : 'Tìm cặp'),
-        actions: [
-          const ScoreChip(),
-          const HelpAction(gameId: 'memory'),
-          IconButton(
-            tooltip: _isDaily ? 'Chơi lại cùng đề' : 'Ván mới',
-            icon: const Icon(Icons.refresh),
-            onPressed: _restart,
-          ),
-        ],
+        actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
       ),
       body: Stack(
         children: [
           Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
+              constraints: BoxConstraints(
+                maxWidth: modestColumnWidth(context, 780),
+              ),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Column(
-                  children: [
-                    _statsRow(s, best),
-                    const SizedBox(height: 10),
-                    CandyRibbon(
-                      text:
-                          '${_game.size.label} · ${_game.size.pairs} cặp'
-                          '${best == null ? '' : ' · Kỷ lục: $best lượt'}',
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+                // Khoi rong hon, thap hon (khong keo cao het man hinh).
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 860),
+                  child: GameBlock(
+                    expand: true,
+                    title: _isDaily ? 'Tìm cặp - Thử thách ngày' : 'Tìm cặp',
+                    onBack: () => context.go(_store.homeRoute),
+                    child: Column(
+                      children: [
+                        _statsRow(s, best),
+                        const SizedBox(height: 10),
+                        CandyRibbon(
+                          text:
+                              '${_game.size.label} · ${_game.size.pairs} cặp'
+                              '${best == null ? '' : ' · Kỷ lục: $best lượt'}',
+                        ),
+                        const SizedBox(height: 12),
+                        Expanded(child: _board(s)),
+                        const SizedBox(height: 12),
+                        GlassPanel(
+                          padding: const EdgeInsets.all(10),
+                          child: _actions(),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    Expanded(child: _board(s)),
-                    const SizedBox(height: 12),
-                    GlassPanel(
-                      padding: const EdgeInsets.all(10),
-                      child: _actions(),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -420,52 +429,49 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   Widget _actions() {
     final canPeek = !_locked && !_game.waiting && _game.peeksLeft > 0;
     final canPause = !_game.won;
+    Widget round(
+      Key key,
+      String tip,
+      IconData icon,
+      List<Color> colors,
+      VoidCallback? onTap,
+    ) {
+      return GameActionButton(
+        buttonKey: key,
+        tooltip: tip,
+        icon: icon,
+        colors: colors,
+        onPressed: onTap,
+      );
+    }
+
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        Expanded(
-          child: CandyButton(
-            key: const ValueKey('memory-peek'),
-            onPressed: canPeek ? _peek : null,
-            colors: Candy.purple,
-            dim: !canPeek,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.visibility_outlined),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    'Nhìn trước (${_game.peeksLeft})',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
+        Badge.count(
+          count: _game.peeksLeft,
+          isLabelVisible: _game.peeksLeft > 0,
+          child: round(
+            const ValueKey('memory-peek'),
+            'Nhìn trước (còn ${_game.peeksLeft})',
+            Icons.visibility_outlined,
+            Candy.purple,
+            canPeek ? _peek : null,
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: CandyButton(
-            key: const ValueKey('memory-pause'),
-            onPressed: canPause ? _togglePause : null,
-            colors: Candy.orange,
-            dim: !canPause,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(_paused ? Icons.play_arrow : Icons.pause),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    _paused ? 'Tiếp tục' : 'Tạm dừng',
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        round(
+          const ValueKey('memory-pause'),
+          _paused ? 'Tiếp tục' : 'Tạm dừng',
+          _paused ? Icons.play_arrow : Icons.pause,
+          Candy.orange,
+          canPause ? _togglePause : null,
+        ),
+        round(
+          const ValueKey('memory-new'),
+          _isDaily ? 'Chơi lại cùng đề' : 'Ván mới',
+          Icons.refresh_rounded,
+          Candy.green,
+          _restart,
         ),
       ],
     );
@@ -560,68 +566,375 @@ class _SetupSheetState extends State<_SetupSheet> {
   late MemorySize _size = widget.size;
   late MemorySet _set = widget.set;
 
+  static const _ink = Candy.brown;
+
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Kích thước', style: t.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final z in MemorySize.values)
-                  ChoiceChip(
-                    key: ValueKey('memory-size-${z.label}'),
-                    label: Text('${z.label} · ${z.pairs} cặp'),
-                    selected: z == _size,
-                    onSelected: (_) => setState(() => _size = z),
-                  ),
-              ],
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      child: Center(
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: reduce ? 1 : 0.9, end: 1),
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutBack,
+              builder: (_, v, child) => Transform.scale(scale: v, child: child),
+              child: _card(context),
             ),
-            const SizedBox(height: 16),
-            Text('Bộ hình', style: t.titleMedium),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final z in MemorySet.values)
-                  ChoiceChip(
-                    key: ValueKey('memory-set-${z.name}'),
-                    label: Text(z.title),
-                    selected: z == _set,
-                    onSelected: (_) => setState(() => _set = z),
-                  ),
-              ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _card(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 38),
+          padding: const EdgeInsets.fromLTRB(18, 50, 18, 18),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFFFF6E3), Candy.cream],
             ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: CandyButton(
+            border: Border.all(color: Candy.bgTop, width: 4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x88000000),
+                offset: Offset(0, 10),
+                blurRadius: 22,
+              ),
+              BoxShadow(color: Colors.white30, spreadRadius: 5),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Chọn kiểu chơi',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _ink,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 14),
+              const _SetupLabel('Kích thước', Icons.grid_view_rounded),
+              const SizedBox(height: 8),
+              GridView.count(
+                crossAxisCount: 2,
+                padding: const EdgeInsets.fromLTRB(0, 12, 8, 0),
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                childAspectRatio: 2.3,
+                children: [for (final z in MemorySize.values) _sizeTile(z)],
+              ),
+              const SizedBox(height: 14),
+              const _SetupLabel('Bộ hình', Icons.category_rounded),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  for (final (i, z) in MemorySet.values.indexed) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    Expanded(child: _setTile(z)),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 18),
+              CandyButton(
                 key: const ValueKey('memory-start'),
                 colors: Candy.green,
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 onPressed: () => Navigator.pop(context, (_size, _set)),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.play_arrow),
+                    Icon(Icons.play_arrow_rounded, size: 28),
                     SizedBox(width: 6),
-                    Text('Bắt đầu'),
+                    Text('Bắt đầu', style: TextStyle(fontSize: 20)),
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+        Container(
+          width: 76,
+          height: 76,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: Candy.orange,
             ),
+            border: Border.all(color: Colors.white, width: 4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x66000000),
+                offset: Offset(0, 5),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: const Icon(Icons.style_rounded, size: 40, color: Colors.white),
+        ),
+        Positioned(
+          top: 46,
+          right: 8,
+          child: CardCloseButton(
+            key: const ValueKey('memory-setup-close'),
+            onTap: () => Navigator.pop(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Ô chọn: viền vàng + dấu tích khi được chọn.
+  Widget _choice({
+    required Key key,
+    required bool selected,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    return GestureDetector(
+      key: key,
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: selected
+              ? const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: Candy.orange,
+                )
+              : null,
+          color: selected ? null : Colors.white.withValues(alpha: .55),
+          border: Border.all(
+            color: selected ? Colors.white : Candy.gold,
+            width: selected ? 3 : 2,
+          ),
+          boxShadow: selected
+              ? const [
+                  BoxShadow(
+                    color: Color(0x55000000),
+                    offset: Offset(0, 3),
+                    blurRadius: 6,
+                  ),
+                ]
+              : null,
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(child: child),
+            if (selected)
+              Positioned(
+                top: -12,
+                right: -8,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF2E7D32),
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _sizeTile(MemorySize z) {
+    final on = z == _size;
+    final fg = on ? Colors.white : _ink;
+    return _choice(
+      key: ValueKey('memory-size-${z.label}'),
+      selected: on,
+      onTap: () => setState(() => _size = z),
+      child: Row(
+        children: [
+          _miniGrid(z, on),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  z.label,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                ),
+                Text(
+                  '${z.pairs} cặp',
+                  style: TextStyle(
+                    color: fg.withValues(alpha: .85),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Hình lưới thu nhỏ đúng số cột x hàng của bàn.
+  Widget _miniGrid(MemorySize z, bool on) {
+    return AspectRatio(
+      aspectRatio: 1,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: on ? Colors.black26 : Candy.creamDeep,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          children: [
+            for (var r = 0; r < z.rows; r++)
+              Expanded(
+                child: Row(
+                  children: [
+                    for (var c = 0; c < z.cols; c++)
+                      Expanded(
+                        child: Container(
+                          margin: const EdgeInsets.all(0.8),
+                          decoration: BoxDecoration(
+                            color: on ? Colors.white : Candy.gold,
+                            borderRadius: BorderRadius.circular(1.5),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _setTile(MemorySet z) {
+    final on = z == _set;
+    final fg = on ? Colors.white : _ink;
+    final sample = switch (z) {
+      MemorySet.icons => const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.favorite, size: 18),
+          SizedBox(width: 3),
+          Icon(Icons.star, size: 18),
+          SizedBox(width: 3),
+          Icon(Icons.pets, size: 18),
+        ],
+      ),
+      MemorySet.shapes => const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.circle, size: 18),
+          SizedBox(width: 3),
+          Icon(Icons.square, size: 18),
+          SizedBox(width: 3),
+          Icon(Icons.change_history, size: 18),
+        ],
+      ),
+      MemorySet.letters => const Text(
+        'A B C',
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+      ),
+    };
+    return SizedBox(
+      height: 76,
+      child: _choice(
+        key: ValueKey('memory-set-${z.name}'),
+        selected: on,
+        onTap: () => setState(() => _set = z),
+        child: IconTheme(
+          data: IconThemeData(color: fg),
+          child: DefaultTextStyle(
+            style: TextStyle(color: fg),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                sample,
+                const SizedBox(height: 6),
+                Text(
+                  z.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SetupLabel extends StatelessWidget {
+  const _SetupLabel(this.text, this.icon);
+
+  final String text;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: Candy.gold),
+        const SizedBox(width: 6),
+        Text(
+          text,
+          style: const TextStyle(
+            color: Candy.brown,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
     );
   }
 }

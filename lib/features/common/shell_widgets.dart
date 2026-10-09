@@ -115,7 +115,7 @@ class _PressableState extends State<Pressable> {
                 ? null
                 : () {
                     GameFx.tap();
-                    Sfx.play(SfxKind.tap);
+                    Sfx.play(SfxKind.click);
                     widget.onTap!();
                   },
             child: widget.child,

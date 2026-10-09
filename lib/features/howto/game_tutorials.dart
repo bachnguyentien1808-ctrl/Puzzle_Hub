@@ -76,7 +76,7 @@ final Map<String, GameTutorial> gameTutorials = {
       TutorialStep(
         Icons.edit_note,
         'Ghi chú nháp',
-        'Chưa chắc chắn? Bật Ghi chú để viết nhiều số nhỏ vào cùng một ô, '
+        'Chưa chắc chắn? Trên máy tính, nhấn phím N để viết nhiều số nhỏ vào cùng một ô, '
             'rồi loại dần cho đến khi còn một số.',
       ),
       TutorialStep(
@@ -87,7 +87,6 @@ final Map<String, GameTutorial> gameTutorials = {
       ),
     ],
     legend: [
-      LegendItem(_icon(Icons.edit_note), 'Ghi chú: số nháp nhỏ trong ô'),
       LegendItem(_icon(Icons.lightbulb_outline), 'Gợi ý kèm giải thích'),
       LegendItem(_icon(Icons.undo), 'Hoàn tác nước vừa đi'),
       LegendItem(_icon(Icons.pause_circle_outline), 'Tạm dừng đồng hồ'),
@@ -200,7 +199,7 @@ final Map<String, GameTutorial> gameTutorials = {
       TutorialStep(
         Icons.flag,
         'Cắm cờ',
-        'Nhấn giữ ô (hoặc chọn nút Cắm cờ) để đánh dấu ô chắc có mìn. '
+        'Nhấn giữ ô (hoặc bấm chuột phải) để đánh dấu ô chắc có mìn. '
             'Chạm vào số đã đủ cờ để mở nhanh các ô kề.',
       ),
       TutorialStep(
@@ -249,7 +248,7 @@ final Map<String, GameTutorial> gameTutorials = {
     legend: [
       LegendItem(_icon(Icons.lightbulb, Colors.amber), 'Đèn đang sáng'),
       LegendItem(_icon(Icons.lightbulb_outline), 'Đèn đã tắt'),
-      LegendItem(_icon(Icons.undo), 'Hoàn tác / Làm lại'),
+      LegendItem(_icon(Icons.undo), 'Hoàn tác'),
       LegendItem(_icon(Icons.tips_and_updates_outlined), 'Gợi ý ô nên bấm'),
     ],
     tip:
@@ -303,7 +302,7 @@ final Map<String, GameTutorial> gameTutorials = {
       TutorialStep(
         Icons.check_circle_outline,
         'Màu báo hiệu',
-        'Đoạn đúng được tô xanh, ô lỗi tô đỏ. Có ghi chú bút chì, hoàn tác '
+        'Đoạn đúng được tô xanh, ô lỗi tô đỏ. Có tạm dừng, hoàn tác '
             'và vài lượt gợi ý.',
       ),
     ],
@@ -318,7 +317,7 @@ final Map<String, GameTutorial> gameTutorials = {
         'Đoạn đúng (tô xanh)',
       ),
       LegendItem(_icon(Icons.error, Colors.redAccent), 'Ô lỗi (tô đỏ)'),
-      LegendItem(_icon(Icons.edit_note), 'Ghi chú bút chì'),
+      LegendItem(_icon(Icons.pause_circle_outline), 'Tạm dừng đồng hồ'),
     ],
     tip:
         'Tổng 3 chỉ có thể là 1+2, tổng 4 trong 2 ô là 1+3: dùng các tổng '

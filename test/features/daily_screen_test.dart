@@ -14,6 +14,9 @@ Future<SharedPreferences> _pump(
 ) async {
   SharedPreferences.setMockInitialValues(prefs);
   final p = await SharedPreferences.getInstance();
+  tester.view.physicalSize = const Size(900, 2200);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -61,5 +64,27 @@ void main() {
     await tester.tap(find.byTooltip('Tháng trước'));
     await tester.pump();
     expect(find.text('Tháng 9/2026'), findsOneWidget);
+  });
+
+  testWidgets('lịch: xem tháng sau, đổi năm, chọn tháng, về hôm nay', (
+    tester,
+  ) async {
+    await _pump(tester, {});
+    expect(find.text('Tháng 10/2026'), findsOneWidget);
+    expect(find.byKey(const ValueKey('daily-today')), findsNothing);
+    await tester.tap(find.byTooltip('Tháng sau'));
+    await tester.pump();
+    expect(find.text('Tháng 11/2026'), findsOneWidget);
+    await tester.tap(find.byTooltip('Năm trước'));
+    await tester.pump();
+    expect(find.text('Tháng 11/2025'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('daily-month-title')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('daily-month-3')));
+    await tester.pumpAndSettle();
+    expect(find.text('Tháng 3/2025'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('daily-today')));
+    await tester.pump();
+    expect(find.text('Tháng 10/2026'), findsOneWidget);
   });
 }

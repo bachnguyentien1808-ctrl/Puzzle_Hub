@@ -44,6 +44,10 @@ void main() {
     tester,
   ) async {
     await _open(tester, await _prefs());
+    expect(find.text('Chọn kiểu chơi'), findsOneWidget);
+    expect(find.text('Xếp số 4x4'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('start4')));
+    await tester.pump();
     expect(find.text('Xếp số 4x4'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(seconds: 2));
@@ -125,6 +129,9 @@ void main() {
     tester,
   ) async {
     await _open(tester, await _prefs());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('start4'))); // màn chọn ván mới
+    await tester.pumpAndSettle();
     await tester.pump(const Duration(seconds: 2));
     await tester.tap(find.byTooltip('Tuỳ chọn'));
     await tester.pumpAndSettle();
@@ -133,9 +140,10 @@ void main() {
     expect(find.text('Hiện số trên ô'), findsOneWidget);
     await tester.tap(find.text('3x3'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-yes')));
+    await tester.pumpAndSettle();
     expect(find.text('Xếp số 3x3'), findsOneWidget);
     await tester.pump(const Duration(seconds: 3));
-    expect(find.textContaining('Ghép lại bức tranh'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 

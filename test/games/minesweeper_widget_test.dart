@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/games/minesweeper/presentation/minesweeper_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -73,6 +74,21 @@ void main() {
     await _end(tester);
   });
 
+  testWidgets('Hoàn tác bước cắm cờ', (tester) async {
+    await _pump(tester, prefs: {'state.minesweeper': _oneMineState()});
+    VoidCallback? on(String key) =>
+        tester.widget<CandyButton>(find.byKey(Key(key))).onPressed;
+    expect(on('undo'), isNull);
+    expect(find.byKey(const Key('redo')), findsNothing);
+    await tester.longPress(find.byKey(const Key('cell-3-3')));
+    await tester.pump(const Duration(seconds: 1));
+    expect(on('undo'), isNotNull);
+    await tester.tap(find.byKey(const Key('undo')));
+    await tester.pump(const Duration(seconds: 1));
+    expect(on('undo'), isNull);
+    await _end(tester);
+  });
+
   testWidgets('Mo trung mine: thua, mat khong doi', (tester) async {
     await _pump(tester, prefs: {'state.minesweeper': _oneMineState()});
     await tester.tap(find.byKey(const Key('cell-0-0')));
@@ -92,9 +108,28 @@ void main() {
     await _end(tester);
   });
 
+  testWidgets('Ván mới hỏi xác nhận: chọn Không thì giữ nguyên ván', (
+    tester,
+  ) async {
+    await _pump(tester, prefs: {'state.minesweeper': _oneMineState()});
+    await tester.tap(find.byKey(const Key('new-game')));
+    await tester.pumpAndSettle();
+    expect(find.text('Làm mới ván chơi?'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('confirm-no')));
+    await tester.pumpAndSettle();
+    expect(find.text('Làm mới ván chơi?'), findsNothing);
+    expect(find.text('1'), findsWidgets); // ván cũ còn nguyên
+    await _end(tester);
+  });
+
   testWidgets('Chon do kho Kho qua sheet, ban 16x30', (tester) async {
     await _pump(tester);
-    await tester.tap(find.byKey(const Key('level')));
+    await tester.pumpAndSettle();
+    await tester.tapAt(const Offset(5, 5)); // đóng bảng chọn của ván mới
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('new-game')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('confirm-yes')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('level-hard')));
     await tester.pumpAndSettle();

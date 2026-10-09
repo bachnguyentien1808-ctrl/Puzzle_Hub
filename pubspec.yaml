@@ -67,7 +67,16 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/sfx/
+    - assets/sfx/lobby/
+    - assets/sfx/sudoku/
+    - assets/sfx/game2048/
+    - assets/sfx/nonogram/
+    - assets/sfx/memory/
+    - assets/sfx/minesweeper/
+    - assets/sfx/lights_out/
+    - assets/sfx/sliding/
+    - assets/sfx/kakuro/
+    - assets/music/
     - assets/images/
 
   # An image asset can refer to one or more resolution-specific "variants", see

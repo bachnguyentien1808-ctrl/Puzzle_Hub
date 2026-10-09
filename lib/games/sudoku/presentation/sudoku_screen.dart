@@ -7,15 +7,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/score/scoring.dart';
-import 'package:puzzle_hub/core/settings/app_settings.dart';
 import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
-import 'package:puzzle_hub/core/ui/frost.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/confirm_new_game.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/game_overlays.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_engine.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_game.dart';
 import 'package:puzzle_hub/games/sudoku/presentation/sudoku_board.dart';
@@ -160,7 +161,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       ..recordStart(_id)
       ..recordStart(level.statsId);
     _save();
-    Sfx.play(SfxKind.flip);
+    Sfx.play(SfxKind.newGame);
   }
 
   void _resetUi() {
@@ -196,7 +197,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     });
     _clock.value = 0;
     _save();
-    Sfx.play(SfxKind.flip);
+    Sfx.play(SfxKind.newGame);
   }
 
   void _backToPicker() {
@@ -343,7 +344,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       _hintUnit = h.unit;
       _hintCell = h.index;
     });
-    Sfx.play(SfxKind.match);
+    Sfx.play(SfxKind.hint);
     _afterPlace(h.index, h.place);
   }
 
@@ -351,21 +352,8 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     final g = _game;
     if (g == null || g.isOver) return;
     setState(() => _paused = !_paused);
-    Sfx.play(SfxKind.tap);
+    Sfx.play(_paused ? SfxKind.pause : SfxKind.resume);
     if (_paused) _save();
-  }
-
-  void _setLimit(bool on) {
-    _limitCfg = on;
-    _ps.saveState(_cfgKey, {'ml': on});
-    final g = _game;
-    setState(() {
-      // Khong bat lai giua van neu da cham 3 loi (se thua ngay).
-      if (g != null && !(on && g.mistakes >= SudokuGame.maxMistakes)) {
-        g.mistakeLimit = on;
-      }
-    });
-    _save();
   }
 
   // ---------- Hieu ung ----------
@@ -502,6 +490,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   };
 
   void _onLose() {
+    Sfx.play(SfxKind.lose);
     _store.clearState(_id);
     setState(() {
       _showResult = true;
@@ -604,6 +593,11 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
 
   // ---------- Giao dien ----------
 
+  Future<void> _askNewGame() async {
+    if (!await confirmNewGame(context) || !mounted) return;
+    await _openLevelSheet();
+  }
+
   Future<void> _openLevelSheet() async {
     final picked = await showModalBottomSheet<SudokuLevel>(
       context: context,
@@ -611,7 +605,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       isScrollControlled: true,
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -642,57 +636,14 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   Widget build(BuildContext context) {
     final g = _game;
     final reduce = _reduce;
-    // Man rong da co menu trai (Trang chu, Huong dan) va nut Moi: bo cac nut
-    // trung lap tren AppBar.
-    final wide = g != null && MediaQuery.sizeOf(context).width >= _wideMin;
     return CandyBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
           automaticallyImplyLeading: false,
-          leading: wide
-              ? null
-              : BackButton(onPressed: () => context.go(_store.homeRoute)),
-          title: wide
-              ? null
-              : Text(_daily ? 'Sudoku · Thử thách ngày' : 'Sudoku'),
-          actions: [
-            const ScoreChip(),
-            if (wide) _moonButton(),
-            if (wide) _gearMenu(g),
-            if (!wide) const HelpAction(gameId: 'sudoku'),
-            if (g != null && !_daily && !wide)
-              IconButton(
-                tooltip: 'Ván mới',
-                icon: const Icon(Icons.add_box_outlined),
-                onPressed: _openLevelSheet,
-              ),
-            if (!wide)
-              PopupMenuButton<String>(
-                tooltip: 'Tuỳ chọn',
-                onSelected: (v) {
-                  if (v == 'limit') _setLimit(!_limitCfg);
-                  if (v == 'restart') _restartSame();
-                },
-                itemBuilder: (_) => [
-                  CheckedPopupMenuItem(
-                    value: 'limit',
-                    checked: _limitCfg,
-                    child: const Text('Giới hạn 3 lỗi'),
-                  ),
-                  if (g != null)
-                    const PopupMenuItem(
-                      value: 'restart',
-                      child: ListTile(
-                        leading: Icon(Icons.replay),
-                        title: Text('Chơi lại đề này'),
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                ],
-              ),
-          ],
+          actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
         ),
         body: SafeArea(
           child: Focus(
@@ -720,29 +671,48 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 440),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Center(
-                child: CandyButton(
-                  onPressed: null,
-                  colors: Candy.purple,
-                  circle: true,
-                  padding: EdgeInsets.all(16),
-                  child: Icon(Icons.grid_on, size: 40),
+          constraints: const BoxConstraints(maxWidth: 600),
+          // Tất cả trong một khối kính, nút × (đỏ khi rê chuột) ở góc phải.
+          child: GlassPanel(
+            radius: 30,
+            padding: const EdgeInsets.fromLTRB(28, 30, 28, 26),
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Center(
+                      child: CandyButton(
+                        onPressed: null,
+                        colors: Candy.purple,
+                        circle: true,
+                        padding: EdgeInsets.all(16),
+                        child: Icon(Icons.grid_on, size: 52),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Center(
+                      child: CandyRibbon(
+                        text: 'Chọn độ khó',
+                        colors: Candy.purple,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SudokuLevelPicker(
+                      stats: (l) => _store.stats(l.statsId),
+                      onPick: _startNew,
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 14),
-              const Center(
-                child: CandyRibbon(text: 'Chọn độ khó', colors: Candy.purple),
-              ),
-              const SizedBox(height: 14),
-              SudokuLevelPicker(
-                stats: (l) => _store.stats(l.statsId),
-                onPick: _startNew,
-              ),
-            ],
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: GlassCloseButton(
+                    onTap: () => context.go(_store.homeRoute),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -751,43 +721,9 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
 
   Widget _gameView(SudokuGame g) {
     final s = Theme.of(context).colorScheme;
-    return Stack(
-      children: [
-        LayoutBuilder(
-          builder: (context, c) =>
-              c.maxWidth >= _wideMin ? _wideMain(g, c) : _phoneMain(g),
-        ),
-        Positioned.fill(
-          child: WinBanner(
-            show: _showWin && !_showResult,
-            title: 'Hoàn thành!',
-            subtitle: formatClock(g.elapsed),
-            points: _points,
-          ),
-        ),
-        if (_showResult) ...[
-          Positioned.fill(
-            child: ColoredBox(color: s.scrim.withValues(alpha: 0.35)),
-          ),
-          Positioned.fill(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 380),
-                  child: _resultPanel(g),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _boardStack(SudokuGame g) {
     final reduce = _reduce;
-    return Stack(
+    final remaining = [for (var d = 1; d <= 9; d++) 9 - g.countOf(d)];
+    final boardStack = Stack(
       clipBehavior: Clip.none,
       children: [
         Shake(
@@ -828,631 +764,150 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
           ),
       ],
     );
-  }
-
-  Widget _hintArea(SudokuGame g) {
-    final s = Theme.of(context).colorScheme;
-    return AnimatedSize(
-      duration: _reduce ? Duration.zero : const Duration(milliseconds: 200),
-      child: _hintText == null
-          ? const SizedBox(width: double.infinity, height: 8)
-          : _hintCard(s),
-    );
-  }
-
-  Widget _phoneMain(SudokuGame g) {
-    final remaining = [for (var d = 1; d <= 9; d++) 9 - g.countOf(d)];
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _infoBar(g),
-              const SizedBox(height: 8),
-              _boardStack(g),
-              _hintArea(g),
-              FrostCard(
-                padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
-                radius: 26,
+    return Stack(
+      children: [
+        Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: playColumnWidth(context, 480) + 32,
+              ),
+              child: GlassPanel(
+                radius: 30,
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SudokuActions(
-                      canUndo: g.canUndo && !_paused,
-                      canRedo: g.canRedo && !_paused,
-                      notesOn: _notes,
-                      hintsLeft: g.hintsLeft,
-                      onUndo: _undo,
-                      onRedo: _redo,
-                      onErase: _erase,
-                      onNotes: _toggleNotes,
-                      onHint: _hint,
+                    _blockHeader(),
+                    const SizedBox(height: 10),
+                    _infoBar(g),
+                    const SizedBox(height: 12),
+                    boardStack,
+                    AnimatedSize(
+                      duration: reduce
+                          ? Duration.zero
+                          : const Duration(milliseconds: 200),
+                      child: _hintText == null
+                          ? const SizedBox(width: double.infinity, height: 14)
+                          : _hintCard(s),
                     ),
-                    const SizedBox(height: 8),
-                    SudokuNumPad(
-                      remaining: remaining,
-                      notesOn: _notes,
-                      onDigit: _digit,
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SudokuActions(
+                            canUndo: g.canUndo && !_paused,
+                            paused: _paused,
+                            canPause: !g.isOver,
+                            hintsLeft: g.hintsLeft,
+                            onUndo: _undo,
+                            onErase: _erase,
+                            onPause: _togglePause,
+                            onHint: _hint,
+                            showNew: !_daily,
+                            onNew: g.isOver ? null : _askNewGame,
+                          ),
+                          const SizedBox(height: 8),
+                          SudokuNumPad(
+                            remaining: remaining,
+                            notesOn: _notes,
+                            onDigit: _digit,
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _toggleNotes() {
-    setState(() => _notes = !_notes);
-    Sfx.play(SfxKind.tap);
-  }
-
-  /// Nut mat trang / mat troi: doi nhanh giua giao dien sang va toi.
-  Widget _moonButton() {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    return Padding(
-      padding: const EdgeInsets.only(left: 8),
-      child: Tooltip(
-        message: dark ? 'Giao diện sáng' : 'Giao diện tối',
-        child: FrostButton(
-          tint: FrostColors.indigo,
-          radius: 22,
-          padding: const EdgeInsets.all(9),
-          onPressed: () => ref
-              .read(settingsProvider.notifier)
-              .setThemeMode(dark ? ThemeMode.light : ThemeMode.dark),
-          child: Icon(
-            dark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-            size: 22,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Banh rang goc tren phai: gom ca menu dieu huong va tuy chon cua game.
-  Widget _gearMenu(SudokuGame? g) {
-    PopupMenuItem<String> item(
-      String v,
-      IconData icon,
-      Color color,
-      String label,
-    ) => PopupMenuItem(
-      value: v,
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(width: 12),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-        ],
-      ),
-    );
-    return PopupMenuButton<String>(
-      tooltip: 'Menu',
-      padding: EdgeInsets.zero,
-      child: const Padding(
-        padding: EdgeInsets.fromLTRB(8, 0, 12, 0),
-        child: _GearFace(),
-      ),
-      onSelected: (v) {
-        switch (v) {
-          case 'home':
-            context.go(_store.homeRoute);
-          case 'stats':
-            context.push('/stats');
-          case 'settings':
-            context.push('/settings');
-          case 'help':
-            showTutorial(context, _id);
-          case 'limit':
-            _setLimit(!_limitCfg);
-          case 'restart':
-            _restartSame();
-        }
-      },
-      itemBuilder: (_) => [
-        item('home', Icons.home_rounded, FrostColors.orange, 'Trang chủ'),
-        item('stats', Icons.bar_chart_rounded, FrostColors.green, 'Thống kê'),
-        item('settings', Icons.tune_rounded, FrostColors.blue, 'Cài đặt'),
-        item('help', Icons.help_outline_rounded, FrostColors.pink, 'Hướng dẫn'),
-        const PopupMenuDivider(),
-        CheckedPopupMenuItem(
-          value: 'limit',
-          checked: _limitCfg,
-          child: const Text('Giới hạn 3 lỗi'),
-        ),
-        if (g != null)
-          item('restart', Icons.replay, FrostColors.purple, 'Chơi lại đề này'),
-      ],
-    );
-  }
-
-  /// Cau noi nho goc duoi ben trai (chi man rong).
-  Widget _quote() => const Align(
-    alignment: Alignment.bottomLeft,
-    child: Padding(
-      padding: EdgeInsets.only(left: 6, bottom: 4),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: Colors.white, width: 2)),
-        ),
-        child: Padding(
-          padding: EdgeInsets.only(left: 10),
-          child: Text(
-            '“Mỗi con số đúng là một bước tiến\ngần hơn đến chiến thắng.”',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              height: 1.4,
-              fontWeight: FontWeight.w700,
-              shadows: [Shadow(color: Color(0xAA000000), blurRadius: 8)],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-
-  /// Man rong (>= [_wideMin] px): menu trai, ban choi giua, bang dieu khien
-  /// phai, va (>= [_statsMin] px) cot thanh tich.
-  static const _wideMin = 1100.0;
-  static const _statsMin = 1240.0;
-
-  Widget _wideMain(SudokuGame g, BoxConstraints c) {
-    final remaining = [for (var d = 1; d <= 9; d++) 9 - g.countOf(d)];
-    final showStats = c.maxWidth >= _statsMin;
-    final f = FrostStyle.of(context);
-    const gap = 16.0;
-    const sideW = 290.0;
-    // Hai cot ngoai (menu trai, thanh tich phai) cung rong de the giua nam
-    // dung giua man hinh.
-    final outerW = showStats ? 250.0 : 190.0;
-    final avail = c.maxWidth - 40 - outerW * 2 - gap * 2 - 40 - sideW - gap;
-    // Ban vuong vua khung: tru tab do kho (~60), hang nut duoi (~80), le.
-    final board = min(avail, c.maxHeight - 310).clamp(300.0, 640.0);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: c.maxHeight - 20),
-        child: Row(
-          children: [
-            SizedBox(width: outerW, height: c.maxHeight - 20, child: _quote()),
-            const SizedBox(width: gap),
-            Expanded(
-              child: Center(
-                child: FrostCard(
-                  radius: 32,
-                  padding: const EdgeInsets.all(20),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: board,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _cardHeader(),
-                            const SizedBox(height: 12),
-                            if (!_daily) _levelTabs(g),
-                            if (!_daily) const SizedBox(height: 14),
-                            _boardStack(g),
-                            _hintArea(g),
-                            const SizedBox(height: 6),
-                            _bottomBar(g),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: gap),
-                      SizedBox(
-                        width: sideW,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _timerCard(g, f),
-                            const SizedBox(height: gap),
-                            _padCard(g, remaining),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: gap),
-            SizedBox(
-              width: outerW,
-              height: c.maxHeight - 20,
-              child: showStats
-                  ? Align(alignment: Alignment.topRight, child: _statsCard(f))
-                  : null,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _padCard(SudokuGame g, List<int> remaining) => FrostCard(
-    padding: const EdgeInsets.all(14),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SudokuNumGrid(remaining: remaining, notesOn: _notes, onDigit: _digit),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            _sideKey(Icons.backspace_outlined, 'Xoá', _erase, FrostColors.red),
-            const SizedBox(width: 10),
-            _sideKey(
-              Icons.lightbulb_outline,
-              'Gợi ý ${g.hintsLeft}',
-              g.hintsLeft > 0 ? _hint : null,
-              FrostColors.amber,
-            ),
-            const SizedBox(width: 10),
-            _sideKey(
-              _notes ? Icons.edit : Icons.edit_outlined,
-              'Ghi chú',
-              _toggleNotes,
-              FrostColors.purple,
-              selected: _notes,
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
-
-  /// Dau the (man rong): nut quay lai + ten game, giong cac game khac.
-  Widget _cardHeader() {
-    final f = FrostStyle.of(context);
-    return Row(
-      children: [
-        BackButton(onPressed: () => context.go(_store.homeRoute)),
-        const SizedBox(width: 10),
-        Icon(Icons.auto_awesome, size: 22, color: f.accent),
-        const SizedBox(width: 8),
-        Text(
-          _daily ? 'Sudoku · Thử thách ngày' : 'Sudoku',
-          style: TextStyle(
-            color: f.ink,
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _levelTabs(SudokuGame g) => Row(
-    children: [
-      for (final l in SudokuLevel.values)
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: FrostButton(
-              key: ValueKey('sudoku-tab-${l.name}'),
-              tint: _levelTint(l),
-              selected: l == g.level,
-              radius: 20,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 11),
-              onPressed: l == g.level ? null : () => _startNew(l),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(levelIcon(l), size: 18),
-                    const SizedBox(width: 6),
-                    Text(l.label),
                   ],
                 ),
               ),
             ),
           ),
         ),
-    ],
-  );
-
-  Color _levelTint(SudokuLevel l) => switch (l) {
-    SudokuLevel.easy => FrostColors.green,
-    SudokuLevel.medium => FrostColors.blue,
-    SudokuLevel.hard => FrostColors.orange,
-    SudokuLevel.expert => FrostColors.red,
-  };
-
-  Widget _bottomBar(SudokuGame g) {
-    Widget btn(
-      IconData icon,
-      String label,
-      VoidCallback? onTap,
-      Color tint, {
-      bool primary = false,
-    }) => Expanded(
-      flex: primary ? 5 : 4,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: SizedBox(
-          width: double.infinity,
-          child: FrostButton(
-            tint: tint,
-            primary: primary,
-            onPressed: onTap,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon),
-                  const SizedBox(width: 6),
-                  Text(label, maxLines: 1),
-                ],
+        Positioned.fill(
+          child: WinBanner(
+            show: _showWin && !_showResult,
+            title: 'Hoàn thành!',
+            subtitle: formatClock(g.elapsed),
+            points: _points,
+          ),
+        ),
+        if (_showResult) ...[
+          Positioned.fill(
+            child: ColoredBox(color: s.scrim.withValues(alpha: 0.35)),
+          ),
+          Positioned.fill(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 380),
+                  child: _resultPanel(g),
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    );
-    return Row(
-      children: [
-        if (!_daily)
-          btn(Icons.refresh_rounded, 'Mới', _openLevelSheet, FrostColors.green),
-        btn(
-          Icons.undo,
-          'Hoàn tác',
-          g.canUndo && !_paused ? _undo : null,
-          FrostColors.blue,
-        ),
-        btn(
-          Icons.redo,
-          'Làm lại',
-          g.canRedo && !_paused ? _redo : null,
-          FrostColors.indigo,
-        ),
-        btn(
-          Icons.lightbulb_outline,
-          'Gợi ý (${g.hintsLeft})',
-          g.hintsLeft > 0 && !_paused ? _hint : null,
-          FrostColors.orange,
-          primary: true,
-        ),
+        ],
       ],
     );
   }
 
-  Widget _sideKey(
-    IconData icon,
-    String label,
-    VoidCallback? onTap,
-    Color tint, {
-    bool selected = false,
-  }) => Expanded(
-    child: FrostButton(
-      tint: tint,
-      selected: selected,
-      radius: 14,
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      onPressed: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 22),
-          const SizedBox(height: 2),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(label, style: const TextStyle(fontSize: 11)),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _timerCard(SudokuGame g, FrostStyle f) => FrostCard(
-    padding: const EdgeInsets.fromLTRB(18, 14, 14, 14),
-    child: Row(
-      children: [
-        const Icon(Icons.timer_outlined, size: 34, color: FrostColors.blue),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Thời gian',
-                style: TextStyle(color: f.subInk, fontWeight: FontWeight.w700),
-              ),
-              ValueListenableBuilder<int>(
-                valueListenable: _clock,
-                builder: (_, v, _) => Text(
-                  formatClock(v),
-                  key: const ValueKey('sudoku-clock'),
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        FrostButton(
-          tint: FrostColors.orange,
-          radius: 28,
-          padding: const EdgeInsets.all(14),
-          onPressed: g.isOver ? null : _togglePause,
-          child: Tooltip(
-            message: _paused ? 'Tiếp tục' : 'Tạm dừng',
-            child: Icon(
-              _paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Widget _statsCard(FrostStyle f) {
-    Widget row(String k, String v) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              k,
-              style: TextStyle(
-                color: f.ink,
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-              ),
-            ),
-          ),
-          Text(
-            v,
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 17,
-              color: f.accent,
-            ),
-          ),
-        ],
-      ),
-    );
-    var played = 0;
-    var won = 0;
-    for (final l in SudokuLevel.values) {
-      final st = _store.stats(l.statsId);
-      played += st.played;
-      won += st.won;
-    }
-    final rate = played == 0 ? 0 : (won * 100 / played).round();
-    return FrostCard(
-      strong: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.emoji_events_outlined, color: FrostColors.amber),
-              SizedBox(width: 8),
-              Text(
-                'Thành tích',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          row('Tổng điểm', '${_ps.totalPoints}'),
-          row('Đã hoàn thành', '$won'),
-          row('Tỷ lệ đúng', '$rate%'),
-          const Divider(),
-          const Row(
-            children: [
-              Icon(Icons.workspace_premium_outlined, color: FrostColors.orange),
-              SizedBox(width: 8),
-              Text(
-                'Kỷ lục',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          for (final l in SudokuLevel.values)
-            row(
-              l.label,
-              _store.stats(l.statsId).best == null
-                  ? '--:--'
-                  : formatClock(_store.stats(l.statsId).best!),
-            ),
-        ],
-      ),
+  /// Dau khoi lon: mui ten quay lai + ten game + diem va menu.
+  Widget _blockHeader() {
+    return GameBlockHeader(
+      title: _daily ? 'Sudoku · Thử thách ngày' : 'Sudoku',
+      onBack: () => context.go(_store.homeRoute),
     );
   }
 
   Widget _infoBar(SudokuGame g) {
     final bad = g.mistakes > 0;
-    return FrostCard(
-      radius: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: ValueListenableBuilder<int>(
-                valueListenable: _clock,
-                builder: (_, v, _) => GlassStat(
-                  key: const ValueKey('sudoku-clock'),
-                  icon: Icons.timer_outlined,
-                  text: formatClock(v),
-                ),
+    return GlassBar(
+      children: [
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: ValueListenableBuilder<int>(
+              valueListenable: _clock,
+              builder: (_, v, _) => GlassStat(
+                key: const ValueKey('sudoku-clock'),
+                icon: Icons.timer_outlined,
+                text: formatClock(v),
               ),
             ),
           ),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: FrostButton(
-                selected: true,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                onPressed: () {},
-                child: Text(
-                  _daily ? 'Hôm nay · ${g.level.label}' : g.level.label,
-                ),
+        ),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: CandyRibbon(
+              text: _daily ? 'Hôm nay · ${g.level.label}' : g.level.label,
+              colors: levelColors(g.level),
+            ),
+          ),
+        ),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: TweenAnimationBuilder<double>(
+              key: ValueKey('mis-${g.mistakes}'),
+              tween: Tween(begin: bad ? 1.3 : 1, end: 1),
+              duration: _reduce
+                  ? Duration.zero
+                  : const Duration(milliseconds: 300),
+              curve: Curves.easeOutBack,
+              builder: (_, v, child) => Transform.scale(scale: v, child: child),
+              child: GlassStat(
+                icon: Icons.close_rounded,
+                colors: Candy.red,
+                text: g.mistakeLimit
+                    ? 'Lỗi ${g.mistakes}/${SudokuGame.maxMistakes}'
+                    : 'Lỗi ${g.mistakes}',
               ),
             ),
           ),
-          Flexible(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: TweenAnimationBuilder<double>(
-                key: ValueKey('mis-${g.mistakes}'),
-                tween: Tween(begin: bad ? 1.3 : 1, end: 1),
-                duration: _reduce
-                    ? Duration.zero
-                    : const Duration(milliseconds: 300),
-                curve: Curves.easeOutBack,
-                builder: (_, v, child) =>
-                    Transform.scale(scale: v, child: child),
-                child: GlassStat(
-                  icon: Icons.close_rounded,
-                  colors: Candy.red,
-                  text: g.mistakeLimit
-                      ? 'Lỗi ${g.mistakes}/${SudokuGame.maxMistakes}'
-                      : 'Lỗi ${g.mistakes}',
-                ),
-              ),
-            ),
-          ),
-          FrostButton(
-            onPressed: g.isOver ? null : _togglePause,
-            radius: 24,
-            padding: const EdgeInsets.all(9),
-            child: Tooltip(
-              message: _paused ? 'Tiếp tục' : 'Tạm dừng',
-              child: Icon(
-                _paused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                size: 26,
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1600,41 +1055,6 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
           child: Text(_daily ? 'Về thử thách' : 'Ván mới'),
         ),
       ],
-    );
-  }
-}
-
-/// Mat nut banh rang: tron trang, icon xanh (noi tren nen troi).
-class _GearFace extends StatelessWidget {
-  const _GearFace();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(9),
-      decoration: BoxDecoration(
-        color: Color.alphaBlend(
-          FrostColors.blue.withValues(alpha: .16),
-          Colors.white,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: FrostColors.blue.withValues(alpha: .5),
-          width: 1.3,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33102040),
-            blurRadius: 10,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Icon(
-        Icons.settings_rounded,
-        size: 22,
-        color: Color.lerp(FrostColors.blue, Colors.black, .3),
-      ),
     );
   }
 }

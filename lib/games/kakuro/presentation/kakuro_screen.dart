@@ -11,9 +11,15 @@ import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
+import 'package:puzzle_hub/core/ui/game_action_button.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
+import 'package:puzzle_hub/features/common/card_close_button.dart';
+import 'package:puzzle_hub/features/common/confirm_new_game.dart';
+import 'package:puzzle_hub/features/common/game_block.dart';
+import 'package:puzzle_hub/features/common/game_overlays.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
+import 'package:puzzle_hub/features/common/pause_cover.dart';
 import 'package:puzzle_hub/games/kakuro/domain/kakuro_engine.dart';
 
 const _id = 'kakuro';
@@ -67,6 +73,9 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   bool _won = false;
   bool _pencil = false;
   bool _paused = false;
+
+  /// Người chơi bấm Tạm dừng (khác với tự dừng khi app ra nền).
+  bool _userPaused = false;
   bool _newBest = false;
   int? _points;
   (int, int)? _sel;
@@ -93,9 +102,18 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (!_restore()) _newGame(_store.isDaily ? _dailyLevel : 1, save: false);
+    if (!_restore()) {
+      final daily = _store.isDaily;
+      _newGame(daily ? _dailyLevel : 1, save: false, record: daily);
+      if (!daily) {
+        // Ván mới: chọn mức trước, tính lượt chơi sau đó.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _chooseLevel();
+        });
+      }
+    }
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || _won || _paused) return;
+      if (!mounted || _won || _paused || _userPaused) return;
       setState(() => _secs++);
       if (_secs % 10 == 0) _save();
     });
@@ -162,7 +180,39 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     });
   }
 
-  void _newGame(int level, {bool save = true}) {
+  /// Hộp chọn mức chơi kiểu thẻ kẹo; trả về chỉ số mức, null nếu đóng.
+  Future<int?> _levelSheet() {
+    return showDialog<int>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (ctx) => _LevelDialog(current: _level),
+    );
+  }
+
+  /// Ván mới đầu tiên: chọn mức trước, tính lượt chơi sau đó.
+  Future<void> _chooseLevel() async {
+    final picked = await _levelSheet();
+    if (!mounted) return;
+    if (picked != null && picked != _level) {
+      _newGame(picked);
+    } else {
+      await _store.recordStart(_id);
+    }
+  }
+
+  /// Nút Ván mới: hỏi xác nhận, rồi chọn mức (đề ngày thì chơi lại cùng đề).
+  Future<void> _askNewGame() async {
+    if (!_won && !await confirmNewGame(context)) return;
+    if (!mounted) return;
+    if (_store.isDaily) {
+      _newGame(_dailyLevel);
+      return;
+    }
+    final picked = await _levelSheet();
+    if (picked != null && mounted) _newGame(picked);
+  }
+
+  void _newGame(int level, {bool save = true, bool record = true}) {
     final lv = _levels[level];
     _level = level;
     _p = KakuroPuzzle.generate(
@@ -175,14 +225,16 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     _secs = 0;
     _hints = lv.hints;
     _won = false;
+    _userPaused = false;
     _newBest = false;
     _points = null;
     _undo.clear();
     _flash.clear();
     _sel = _firstWhite();
     _recompute();
-    _store.recordStart(_id);
+    if (record) _store.recordStart(_id);
     _save();
+    if (save) Sfx.play(SfxKind.newGame);
     if (save) setState(() {});
   }
 
@@ -215,7 +267,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
 
   void _put(int d, {bool fromHint = false}) {
     final s = _sel;
-    if (s == null || _won) return;
+    if (s == null || _won || _userPaused) return;
     final (r, c) = s;
     if (_pencil && d != 0 && !fromHint) {
       if (_v[r][c] != 0) return;
@@ -315,8 +367,16 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     Sfx.play(SfxKind.win);
   }
 
+  void _togglePause() {
+    if (_won) return;
+    setState(() => _userPaused = !_userPaused);
+    GameFx.tap();
+    Sfx.play(_userPaused ? SfxKind.pause : SfxKind.resume);
+    if (_userPaused) _save();
+  }
+
   void _undoMove() {
-    if (_undo.isEmpty || _won) return;
+    if (_undo.isEmpty || _won || _userPaused) return;
     final (r, c, v, m) = _undo.removeLast();
     setState(() {
       _v[r][c] = v;
@@ -330,7 +390,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   }
 
   void _hint() {
-    if (_won) return;
+    if (_won || _userPaused) return;
     if (_hints <= 0) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -353,6 +413,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
       }
     }
     if (target == null) return;
+    Sfx.play(SfxKind.hint);
     setState(() {
       _hints--;
       _sel = target;
@@ -419,34 +480,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        leading: BackButton(onPressed: () => context.go(_store.homeRoute)),
-        title: Text(_store.isDaily ? 'Kakuro - Thử thách ngày' : 'Kakuro'),
-        actions: [
-          const ScoreChip(),
-          const HelpAction(gameId: 'kakuro'),
-          if (_store.isDaily)
-            IconButton(
-              tooltip: 'Chơi lại đề hôm nay',
-              icon: const Icon(Icons.refresh),
-              onPressed: () => _newGame(_dailyLevel),
-            )
-          else
-            PopupMenuButton<int>(
-              tooltip: 'Ván mới',
-              icon: const Icon(Icons.refresh),
-              onSelected: _newGame,
-              itemBuilder: (_) => [
-                for (var i = 0; i < _levels.length; i++)
-                  PopupMenuItem(
-                    value: i,
-                    child: Text(
-                      'Ván mới - ${_levels[i].name} '
-                      '(${_levels[i].n}x${_levels[i].n})',
-                    ),
-                  ),
-              ],
-            ),
-        ],
+        actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
       ),
       body: Focus(
         focusNode: _focus,
@@ -457,53 +491,68 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
             Center(
               child: SingleChildScrollView(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 480),
+                  constraints: BoxConstraints(
+                    maxWidth: fitColumnWidth(
+                      context,
+                      480,
+                      max: 700,
+                      chrome: 370,
+                    ),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _statusRow(scheme, best),
-                        const SizedBox(height: 10),
-                        AspectRatio(
-                          aspectRatio: 1,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Positioned.fill(
-                                child: Shake(
-                                  key: _shake,
-                                  child: _board(scheme),
-                                ),
-                              ),
-                              if (_toastText.isNotEmpty)
-                                Positioned(
-                                  top: -14,
-                                  left: 0,
-                                  right: 0,
-                                  child: IgnorePointer(
-                                    child: _RunToast(
-                                      key: ValueKey(_toastId),
-                                      text: _toastText,
-                                    ),
+                    padding: const EdgeInsets.fromLTRB(6, 4, 6, 16),
+                    child: GameBlock(
+                      title: _store.isDaily
+                          ? 'Kakuro - Thử thách ngày'
+                          : 'Kakuro',
+                      onBack: () => context.go(_store.homeRoute),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _statusRow(scheme, best),
+                          const SizedBox(height: 10),
+                          AspectRatio(
+                            aspectRatio: 1,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Positioned.fill(
+                                  child: Shake(
+                                    key: _shake,
+                                    child: _board(scheme),
                                   ),
                                 ),
-                            ],
+                                if (_userPaused)
+                                  PauseCover(onResume: _togglePause),
+                                if (_toastText.isNotEmpty)
+                                  Positioned(
+                                    top: -14,
+                                    left: 0,
+                                    right: 0,
+                                    child: IgnorePointer(
+                                      child: _RunToast(
+                                        key: ValueKey(_toastId),
+                                        text: _toastText,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 14),
-                        GlassPanel(
-                          padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _toolRow(scheme),
-                              const SizedBox(height: 10),
-                              _numPad(scheme),
-                            ],
+                          const SizedBox(height: 14),
+                          GlassPanel(
+                            padding: const EdgeInsets.fromLTRB(8, 12, 8, 10),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _toolRow(scheme),
+                                const SizedBox(height: 10),
+                                _numPad(scheme),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -734,6 +783,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   }
 
   Widget _toolRow(ColorScheme scheme) {
+    // Các nút chia đều theo bề rộng khối, đối xứng hai bên.
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
@@ -748,20 +798,23 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
           onTap: _won ? null : () => _put(0),
         ),
         _Tool(
-          icon: _pencil ? Icons.edit : Icons.edit_outlined,
-          label: _pencil ? 'Ghi chú: bật' : 'Ghi chú',
-          active: _pencil,
-          toggle: true,
-          onTap: () {
-            GameFx.tap();
-            setState(() => _pencil = !_pencil);
-          },
+          icon: _userPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+          label: _userPaused ? 'Tiếp tục' : 'Tạm dừng',
+          colors: Candy.orange,
+          onTap: _won ? null : _togglePause,
         ),
         _Tool(
           icon: Icons.lightbulb_outline,
           label: 'Gợi ý',
           badge: _hints,
           onTap: _won ? null : _hint,
+        ),
+        _Tool(
+          icon: Icons.refresh_rounded,
+          label: 'Ván mới',
+          colors: Candy.green,
+          // Thu thach ngay: choi lai de hom nay; thuong: chon muc roi choi.
+          onTap: _askNewGame,
         ),
       ],
     );
@@ -852,60 +905,27 @@ class _Tool extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.active = false,
-    this.toggle = false,
     this.badge,
+    this.colors,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
-  final bool active;
 
-  /// Nut bat/tat: sang khi [active], mo khi tat.
-  final bool toggle;
+  /// Mau rieng (mac dinh xanh lam).
+  final List<Color>? colors;
+
   final int? badge;
 
   @override
   Widget build(BuildContext context) {
-    Widget btn = CandyButton(
+    return GameActionButton(
+      icon: icon,
+      tooltip: label,
+      colors: colors ?? Candy.blue,
       onPressed: onTap,
-      colors: toggle ? Candy.orange : Candy.blue,
-      dim: onTap == null || (toggle && !active),
-      padding: const EdgeInsets.all(10),
-      child: Icon(icon),
-    );
-    if (badge != null) {
-      btn = Badge(
-        label: Text('$badge'),
-        backgroundColor: badge! > 0 ? Candy.red.last : const Color(0xFF5B6B85),
-        textColor: Colors.white,
-        child: btn,
-      );
-    }
-    return Tooltip(
-      message: label,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          btn,
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-            decoration: BoxDecoration(
-              color: GlassStyle.of(context).pill,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: GlassStyle.of(context).pillText,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
+      badge: badge == null ? null : '$badge',
     );
   }
 }
@@ -1180,6 +1200,220 @@ class _RunToast extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Hộp chọn mức chơi Kakuro: thẻ kem, ba nút mức có hình bàn thu nhỏ.
+class _LevelDialog extends StatelessWidget {
+  const _LevelDialog({required this.current});
+
+  final int current;
+
+  static const _colors = [Candy.green, Candy.orange, Candy.red];
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Center(
+        child: SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: reduce ? 1 : 0.88, end: 1),
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutBack,
+              builder: (_, v, child) => Transform.scale(scale: v, child: child),
+              child: _card(context),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _card(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 38),
+          padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFFFF6E3), Candy.cream],
+            ),
+            border: Border.all(color: Candy.bgTop, width: 4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x88000000),
+                offset: Offset(0, 10),
+                blurRadius: 22,
+              ),
+              BoxShadow(color: Colors.white30, spreadRadius: 5),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Chọn mức chơi',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Candy.brown,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Mức càng cao, bàn càng lớn',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Candy.brown,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              for (final (i, lv) in _levels.indexed) ...[
+                if (i > 0) const SizedBox(height: 10),
+                _levelButton(context, i, lv),
+              ],
+            ],
+          ),
+        ),
+        Container(
+          width: 76,
+          height: 76,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: Candy.purple,
+            ),
+            border: Border.all(color: Colors.white, width: 4),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x66000000),
+                offset: Offset(0, 5),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: const Icon(
+            Icons.grid_view_rounded,
+            size: 40,
+            color: Colors.white,
+          ),
+        ),
+        Positioned(
+          top: 46,
+          right: 8,
+          child: CardCloseButton(
+            key: const ValueKey('kakuro-level-close'),
+            onTap: () => Navigator.pop(context),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _levelButton(BuildContext context, int i, _Level lv) {
+    return CandyButton(
+      key: ValueKey('kakuro-level-$i'),
+      colors: _colors[i],
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      onPressed: () => Navigator.pop(context, i),
+      child: Row(
+        children: [
+          _miniBoard(lv.n),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      lv.name,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if (i == current) ...[
+                      const SizedBox(width: 8),
+                      const Icon(Icons.check_circle_rounded, size: 20),
+                    ],
+                  ],
+                ),
+                Text(
+                  '${lv.n}x${lv.n} · ${lv.hints} gợi ý',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var k = 0; k < 3; k++)
+                Icon(
+                  Icons.star_rounded,
+                  size: 20,
+                  color: k <= i ? Colors.white : Colors.white38,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Hình bàn thu nhỏ n x n để nhìn ra mức lớn nhỏ.
+  Widget _miniBoard(int n) {
+    return Container(
+      width: 52,
+      height: 52,
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        color: Colors.black26,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        children: [
+          for (var r = 0; r < n; r++)
+            Expanded(
+              child: Row(
+                children: [
+                  for (var c = 0; c < n; c++)
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.all(0.8),
+                        decoration: BoxDecoration(
+                          color: (r == 0 || c == 0)
+                              ? Colors.white38
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(1.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

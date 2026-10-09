@@ -8,8 +8,8 @@ import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/settings/app_settings.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
-import 'package:puzzle_hub/core/ui/frost.dart';
 import 'package:puzzle_hub/core/ui/game_logo.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/features/common/shell_widgets.dart';
 import 'package:puzzle_hub/features/daily/daily_screen.dart';
 import 'package:puzzle_hub/features/howto/how_to_sheet.dart';
@@ -102,7 +102,6 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
           return CustomScrollView(
             slivers: [
               SliverAppBar(
-                pinned: true,
                 toolbarHeight: 140,
                 leadingWidth: 240,
                 leading: const Padding(
@@ -125,17 +124,11 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
                   ),
                   const SizedBox(width: 8),
                   _RoundAction(
-                    tooltip: 'Thống kê',
-                    icon: Icons.insights_rounded,
-                    colors: Candy.blue,
-                    onPressed: () => context.go('/stats'),
-                  ),
-                  const SizedBox(width: 8),
-                  _RoundAction(
-                    tooltip: 'Cài đặt',
+                    tooltip: 'Menu',
                     icon: Icons.settings_rounded,
                     colors: Candy.purple,
-                    onPressed: () => context.go('/settings'),
+                    onPressed: () =>
+                        showHubMenu(context, top: 84, showHome: false),
                   ),
                   const SizedBox(width: 14),
                 ],
@@ -150,7 +143,10 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
                       children: [
                         StaggerIn(
                           animation: _slot(0),
-                          child: _ScoreBanner(points: store.totalPoints),
+                          child: GestureDetector(
+                            onTap: () => context.push('/achievements'),
+                            child: _ScoreBanner(points: store.totalPoints),
+                          ),
                         ),
                         const SizedBox(height: 14),
                         StaggerIn(
@@ -520,6 +516,10 @@ class _ResumeRow extends StatelessWidget {
 
   final List<GameInfo> games;
 
+  /// Toi da 5 the moi hang, du rong thi xuong dong.
+  static const _maxPerRow = 5;
+  static const _gap = 10.0;
+
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
@@ -528,62 +528,74 @@ class _ResumeRow extends StatelessWidget {
       children: [
         const _SectionLabel('Chơi tiếp', Icons.play_circle_fill_rounded),
         const SizedBox(height: 10),
-        SizedBox(
-          height: 66,
-          child: ListView.separated(
-            clipBehavior: Clip.none,
-            scrollDirection: Axis.horizontal,
-            itemCount: games.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 10),
-            itemBuilder: (context, i) {
-              final g = games[i];
-              final colors = Candy.forId(g.id);
-              return _Hoverable(
-                scale: 1.08,
-                child: Pressable(
-                  semanticLabel: 'Chơi tiếp ${g.title}',
-                  borderRadius: 18,
-                  onTap: () => context.go('/play/${g.id}'),
-                  child: Ink(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: colors,
-                      ),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Candy.gold, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Candy.deep(colors),
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        GameLogo(id: g.id, size: 40),
-                        const SizedBox(width: 10),
-                        Text(
-                          g.title,
-                          style: t.titleSmall?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
+        LayoutBuilder(
+          builder: (context, box) {
+            // The rong deu nhau, khong vuot qua be rong cua noi dung.
+            final fit = ((box.maxWidth + _gap) / (150 + _gap)).floor();
+            final perRow = fit.clamp(1, _maxPerRow);
+            final w = (box.maxWidth - _gap * (perRow - 1)) / perRow;
+            return Wrap(
+              spacing: _gap,
+              runSpacing: _gap,
+              children: [
+                for (final g in games)
+                  SizedBox(
+                    width: w,
+                    height: 66,
+                    child: _Hoverable(
+                      scale: 1.05,
+                      child: Pressable(
+                        semanticLabel: 'Chơi tiếp ${g.title}',
+                        borderRadius: 18,
+                        onTap: () => context.go('/play/${g.id}'),
+                        child: Ink(
+                          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: Candy.forId(g.id),
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: Candy.gold, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Candy.deep(Candy.forId(g.id)),
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              GameLogo(id: g.id, size: 40),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    g.title,
+                                    style: t.titleSmall?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.play_arrow_rounded,
+                                color: Colors.white,
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        const Icon(
-                          Icons.play_arrow_rounded,
-                          color: Colors.white,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -606,35 +618,53 @@ class _FilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Widget chip(int i, GameCategory c, {required bool compact}) => CandyButton(
+      onPressed: () => onChanged(c),
+      colors: _palette[i % _palette.length],
+      dim: c != value,
+      radius: 18,
+      padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 14, vertical: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(c.icon, size: compact ? 16 : 18),
+          SizedBox(width: compact ? 4 : 6),
+          Flexible(
+            child: Text(
+              c.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: compact ? const TextStyle(fontSize: 13) : null,
+            ),
+          ),
+        ],
+      ),
+    );
+    final cats = GameCategory.values.indexed.toList();
+    // Dien thoai: cac tab chia deu chieu ngang, khong tran ra ngoai.
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          children: [
+            for (final (i, c) in cats) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(child: chip(i, c, compact: true)),
+            ],
+          ],
+        ),
+      );
+    }
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       clipBehavior: Clip.none,
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         children: [
-          for (final (i, c) in GameCategory.values.indexed)
+          for (final (i, c) in cats)
             Padding(
               padding: const EdgeInsets.only(right: 10),
-              // Nut dang chon to dac mau (chu trang); nut con lai nen trang
-              // mo chu mau dam, khong lam mo them.
-              child: FrostButton(
-                onPressed: () => onChanged(c),
-                tint: _palette[i % _palette.length].last,
-                selected: c == value,
-                opaque: true,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(c.icon, size: 18),
-                    const SizedBox(width: 6),
-                    Text(c.label),
-                  ],
-                ),
-              ),
+              child: chip(i, c, compact: false),
             ),
         ],
       ),
@@ -696,7 +726,11 @@ class GameCard extends StatelessWidget {
           Positioned.fill(
             child: Pressable(
               semanticLabel: '${game.title}. ${game.subtitle}',
-              onTap: () => context.go('/play/${game.id}'),
+              onTap: () async {
+                // Bấm cả thẻ = chơi lại từ đầu; "Chơi tiếp" mới giữ ván dở.
+                if (resume) await store.clearState(game.id);
+                if (context.mounted) context.go('/play/${game.id}');
+              },
               child: Ink(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -737,32 +771,37 @@ class GameCard extends StatelessWidget {
                                     alignment: Alignment.centerRight,
                                     child: FittedBox(
                                       fit: BoxFit.scaleDown,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white24,
-                                          borderRadius: BorderRadius.circular(
-                                            10,
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () =>
+                                            context.go('/play/${game.id}'),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
                                           ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.play_arrow_rounded,
-                                              size: 14,
-                                              color: onCard,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white24,
+                                            borderRadius: BorderRadius.circular(
+                                              10,
                                             ),
-                                            Text(
-                                              'Chơi tiếp',
-                                              style: t.labelSmall?.copyWith(
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.play_arrow_rounded,
+                                                size: 14,
                                                 color: onCard,
                                               ),
-                                            ),
-                                          ],
+                                              Text(
+                                                'Chơi tiếp',
+                                                style: t.labelSmall?.copyWith(
+                                                  color: onCard,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -830,12 +869,10 @@ class GameCard extends StatelessWidget {
               tooltip: 'Cách chơi ${game.title}',
               visualDensity: VisualDensity.compact,
               iconSize: 20,
-              // Chi con dau hoi trong vong tron nho, khong nen trang.
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                foregroundColor: Colors.white,
+              icon: const Icon(
+                Icons.help_outline_rounded,
+                color: Colors.white70,
               ),
-              icon: const Icon(Icons.help_outline_rounded),
               onPressed: () => showHowTo(context, game),
             ),
           ),

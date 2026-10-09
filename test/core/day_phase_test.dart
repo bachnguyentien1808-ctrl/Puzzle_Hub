@@ -31,7 +31,7 @@ void main() {
     expect(BackdropAssets.resolve(sky, DayPhase.day), sky);
     expect(
       BackdropAssets.resolve(sky, DayPhase.dusk),
-      'assets/images/bg_sky_dusk.webp',
+      'assets/images/bg_sky_dusk3.webp',
     );
     expect(
       BackdropAssets.resolve(sky, DayPhase.night),

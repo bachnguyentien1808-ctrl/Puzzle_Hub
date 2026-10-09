@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
-import 'package:puzzle_hub/features/common/frost_shell.dart';
 import 'package:puzzle_hub/features/howto/game_tutorials.dart';
 import 'package:puzzle_hub/games/game_registry.dart';
 
@@ -68,17 +67,8 @@ class _GameIntroState extends ConsumerState<GameIntro> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    // Sudoku co bo cuc rong rieng; cac game con lai dung khung chung.
-    final body = widget.gameId == 'sudoku'
-        ? widget.child
-        : FrostWideShell(
-            gameId: widget.gameId,
-            onHelp: () => showTutorial(context, widget.gameId),
-            child: widget.child,
-          );
-    return GameBackdrop(gameId: widget.gameId, child: body);
-  }
+  Widget build(BuildContext context) =>
+      GameBackdrop(gameId: widget.gameId, child: widget.child);
 }
 
 class TutorialSheet extends StatefulWidget {

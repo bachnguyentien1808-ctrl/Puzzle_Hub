@@ -156,7 +156,7 @@ void main() {
     testWidgets('thu thach ngay: choi toi thang, hien sao', (t) async {
       const day = '20261004';
       await pump(t, daily: day);
-      expect(find.text('Nhìn trước (2)'), findsOneWidget);
+      expect(find.byTooltip('Nhìn trước (còn 2)'), findsOneWidget);
       final model = MemoryGame(rng: Random(dailySeed(day, 'memory')));
       while (!model.won) {
         final (a, b) = _pair(model);
@@ -178,7 +178,7 @@ void main() {
       await pump(t, daily: '20261004');
       await t.tap(find.byKey(const ValueKey('memory-peek')));
       await t.pump();
-      expect(find.text('Nhìn trước (1)'), findsOneWidget);
+      expect(find.byTooltip('Nhìn trước (còn 1)'), findsOneWidget);
       await t.pump(const Duration(seconds: 3));
       await t.tap(find.byKey(const ValueKey('memory-pause')));
       await t.pump();

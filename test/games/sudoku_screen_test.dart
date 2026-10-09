@@ -114,13 +114,13 @@ void main() {
 
     // Ghi chu o 3.
     await tester.tap(_cell(3));
-    await tester.tap(find.text('Ghi chú'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN); // bật ghi chú bằng phím
     await _step(tester);
     await tester.tap(_pad(6));
     await tester.tap(_pad(2));
     await _step(tester);
     expect(_cellText(tester, 3), '26');
-    await tester.tap(find.text('Hoàn tác'));
+    await tester.tap(find.byTooltip('Hoàn tác'));
     await _step(tester);
     expect(_cellText(tester, 3), '6');
 
@@ -138,9 +138,9 @@ void main() {
     // Tam dung che ban co.
     await tester.tap(find.byTooltip('Tạm dừng'));
     await _step(tester);
-    expect(find.text('Tạm dừng'), findsOneWidget);
+    expect(find.byKey(const ValueKey('pause')), findsOneWidget);
     expect(_cell(0), findsNothing);
-    await tester.tap(find.text('Tiếp tục'));
+    await tester.tap(find.byKey(const ValueKey('pause')));
     await _step(tester);
     expect(_cell(0), findsOneWidget);
   });
@@ -163,7 +163,7 @@ void main() {
   testWidgets('goi y hien giai thich va tru luot', (tester) async {
     await _pump(tester, {'state.sudoku': _saved()});
     expect(find.text('3'), findsWidgets);
-    await tester.tap(find.text('Gợi ý'));
+    await tester.tap(find.byTooltip('Gợi ý'));
     await _step(tester);
     expect(find.byIcon(Icons.lightbulb), findsOneWidget);
     // Badge con 2.
@@ -197,7 +197,7 @@ void main() {
   ) async {
     await _pump(tester, {'state.sudoku': _saved()}, size: const Size(360, 740));
     await tester.tap(_cell(2));
-    await tester.tap(find.text('Ghi chú'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN); // bật ghi chú bằng phím
     await _step(tester);
     await tester.tap(_pad(9));
     await _step(tester);

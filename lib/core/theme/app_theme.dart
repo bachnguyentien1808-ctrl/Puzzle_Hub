@@ -16,33 +16,17 @@ abstract final class AppTheme {
         backgroundColor: Colors.transparent,
         scrolledUnderElevation: 0,
         // Tieu de trang tren nen anh: chu trang dam co bong, doc ro moi buoi.
-        // Icon thanh tren nam trong nut trang (xem iconButtonTheme): xanh dam.
-        foregroundColor: Color(0xFF1B2F57),
+        foregroundColor: Colors.white,
         titleTextStyle: TextStyle(
           color: Colors.white,
           fontSize: 22,
           fontWeight: FontWeight.w800,
           shadows: [Shadow(color: Color(0x99000000), blurRadius: 4)],
         ),
-        iconTheme: IconThemeData(color: Color(0xFF1B2F57)),
-        actionsIconTheme: IconThemeData(color: Color(0xFF1B2F57)),
+        iconTheme: IconThemeData(color: Colors.white),
+        actionsIconTheme: IconThemeData(color: Colors.white),
       ),
       cardTheme: const CardThemeData(elevation: 0),
-      // Nut bieu tuong: vien thuoc trang, icon xanh dam, noi tren moi nen.
-      iconButtonTheme: IconButtonThemeData(
-        style: ButtonStyle(
-          backgroundColor: WidgetStateProperty.resolveWith(
-            (s) => s.contains(WidgetState.disabled)
-                ? const Color(0x66FFFFFF)
-                : const Color(0xE6FFFFFF),
-          ),
-          foregroundColor: WidgetStateProperty.resolveWith(
-            (s) => s.contains(WidgetState.disabled)
-                ? const Color(0x661B2F57)
-                : const Color(0xFF1B2F57),
-          ),
-        ),
-      ),
     );
   }
 }

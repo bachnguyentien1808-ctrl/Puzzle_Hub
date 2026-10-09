@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
@@ -10,7 +11,17 @@ import 'package:puzzle_hub/core/audio/sfx.dart';
 /// Moi loi plugin (vd chay trong test, nen tang thieu plugin) deu bi nuot:
 /// am thanh khong bao gio duoc lam sap game.
 class SfxEngine {
-  SfxEngine._();
+  SfxEngine._() {
+    // Tắt tiếng thì cắt luôn các tiếng đang phát dở.
+    enabled.addListener(() {
+      if (enabled.value) return;
+      for (final list in _pool.values) {
+        for (final p in list) {
+          unawaited(p.stop().catchError((Object _) {}));
+        }
+      }
+    });
+  }
 
   static final SfxEngine instance = SfxEngine._();
 
@@ -20,20 +31,38 @@ class SfxEngine {
   static const _voices = 3;
   final Map<SfxKind, List<AudioPlayer>> _pool = {};
   final Map<SfxKind, int> _next = {};
+  final Random _rng = Random();
   bool _broken = false;
 
-  static String assetOf(SfxKind k) => 'sfx/${k.name}.wav';
+  static String assetOf(SfxKind k, [String? theme]) =>
+      'sfx/${theme ?? Sfx.theme}/${k.name}.wav';
+
+  static final Set<String> _loaded = {};
+
+  /// Nạp trước bộ tiếng của một chủ đề (chỉ nạp một lần).
+  static Future<void> preloadTheme(String theme) async {
+    if (!_loaded.add(theme)) return;
+    try {
+      await AudioCache.instance.loadAll([
+        for (final k in SfxKind.values) assetOf(k, theme),
+      ]);
+    } on Object catch (e) {
+      _loaded.remove(theme);
+      debugPrint('SfxEngine: khong nap duoc bo tieng $theme: $e');
+    }
+  }
+
+  /// Đổi chủ đề âm sắc theo màn hình (sảnh chờ hoặc từng game).
+  static void setTheme(String theme) {
+    if (Sfx.theme == theme) return;
+    Sfx.theme = theme;
+    unawaited(preloadTheme(theme));
+  }
 
   /// Gan [Sfx.player] va nap truoc file am. Goi mot lan o main().
   static Future<void> install() async {
     Sfx.player = instance.play;
-    try {
-      await AudioCache.instance.loadAll([
-        for (final k in SfxKind.values) assetOf(k),
-      ]);
-    } on Object catch (e) {
-      debugPrint('SfxEngine: khong nap duoc am thanh: $e');
-    }
+    await preloadTheme(Sfx.theme);
   }
 
   void play(SfxKind kind) {
@@ -49,9 +78,14 @@ class SfxEngine {
         );
       }
       final p = list[i];
+      // Tiếng bấm nút đổi cao độ nhẹ mỗi lần cho đỡ đơn điệu.
+      final rate = kind == SfxKind.click
+          ? 0.94 + _rng.nextDouble() * 0.16
+          : 1.0;
       unawaited(
         p
             .stop()
+            .then((_) => p.setPlaybackRate(rate))
             .then((_) => p.play(AssetSource(assetOf(kind)), volume: 0.8))
             .catchError(_onError),
       );
