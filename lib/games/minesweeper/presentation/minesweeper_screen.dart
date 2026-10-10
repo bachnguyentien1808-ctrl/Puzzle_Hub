@@ -61,6 +61,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   int _hintsUsed = 0;
   bool _moved = false;
   int? _points;
+  bool _showLose = false;
   bool _resumed = true;
   bool _paused = false;
   final List<String> _undo = [];
@@ -151,6 +152,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     _undo.clear();
     _hintsUsed = 0;
     _points = null;
+    _showLose = false;
     _moved = false;
     if (_daily) {
       _level = MineLevel.medium;
@@ -261,6 +263,10 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
       _shake.currentState?.shake();
       _recordLoss();
       _store.clearState(_id);
+      // Cho mìn nổ lan một lúc rồi mới hiện thẻ thua.
+      Future<void>.delayed(const Duration(milliseconds: 1400), () {
+        if (mounted && _game.lost) setState(() => _showLose = true);
+      });
       return;
     }
     if (_game.won) {
@@ -646,11 +652,26 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
             if (_paused) PauseCover(onResume: _togglePause),
             Positioned.fill(
               child: WinBanner(
-                show: _game.won,
-                title: 'Thắng!',
-                subtitle: '$_seconds giây',
+                show: _game.won || _showLose,
+                lose: _showLose && !_game.won,
+                title: _game.won ? 'Bạn đã thắng!' : 'Bạn đã thua!',
+                subtitle: _game.won
+                    ? 'Chúc mừng bạn đã hoàn thành màn chơi!'
+                    : 'Đừng bỏ cuộc, thử lại nhé!',
+                chips: [
+                  if (_game.won)
+                    WinChip(
+                      Icons.flag_rounded,
+                      '${_game.mines - _game.flagsLeft}',
+                    )
+                  else
+                    WinChip(Icons.dangerous_rounded, '${_game.mines} mìn'),
+                  WinChip(Icons.timer_outlined, _clock(_seconds)),
+                ],
+                ribbon: _game.won ? 'Hoàn thành xuất sắc!' : 'Mìn đã phát nổ!',
                 points: _points,
                 onAgain: () => setState(_newGame),
+                onExit: () => context.go(_store.homeRoute),
               ),
             ),
           ],
@@ -658,6 +679,9 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
       },
     );
   }
+
+  static String _clock(int s) =>
+      '${(s ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}';
 
   Widget _tile(int r, int c, double size, bool reduce) {
     final cell = _game.cells[r][c];
@@ -1003,6 +1027,7 @@ class _LevelSheetState extends State<_LevelSheet> {
       key: Key('level-${l.key}'),
       colors: _colorsOf(l),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      sfx: SfxKind.option,
       onPressed: () => _pop(l),
       child: Row(
         children: [

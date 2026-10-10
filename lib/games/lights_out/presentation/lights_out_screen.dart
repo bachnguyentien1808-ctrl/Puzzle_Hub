@@ -123,6 +123,7 @@ class _LightsOutScreenState extends ConsumerState<LightsOutScreen> {
   Widget _tabButton(int value, IconData icon, String label) {
     return Expanded(
       child: CandyButton(
+        sfx: SfxKind.option,
         onPressed: () => setState(() => _tab = value),
         colors: value == 0 ? Candy.orange : Candy.blue,
         dim: _tab != value,
@@ -214,6 +215,7 @@ class _LightsOutScreenState extends ConsumerState<LightsOutScreen> {
                     if (n != 3) const SizedBox(width: 8),
                     Expanded(
                       child: CandyButton(
+                        sfx: SfxKind.option,
                         onPressed: () => setState(() => _size = n),
                         colors: _sizeColors(n),
                         dim: _size != n,

@@ -37,6 +37,8 @@ class MusicEngine {
   bool _starting = false;
   bool _broken = false;
   Timer? _fade;
+  int _gen = 0;
+  static int _seq = 0;
 
   bool get _shouldPlay =>
       _wanted != null && _foreground && SfxEngine.enabled.value;
@@ -62,6 +64,9 @@ class MusicEngine {
   void kick() {
     if (!_shouldPlay) return;
     if (!_playing) {
+      // Trên web (Safari...) lệnh phát chưa có cử chỉ có thể treo mãi, kẹt
+      // cờ _starting: bỏ lệnh treo, phát lại ngay trong cú chạm này.
+      if (_starting && kIsWeb) _abandonStart();
       _apply();
       return;
     }
@@ -70,12 +75,23 @@ class MusicEngine {
       final p = _player;
       final track = _current;
       if (p == null || track == null) return;
+      final gen = _gen;
       unawaited(() async {
         try {
           await p.stop();
           await p.setVolume(0);
           await p.play(AssetSource('music/$track.mp3'));
-          if (_shouldPlay) _fadeTo(volumeOf(track));
+          if (gen != _gen) {
+            // Bị tắt tiếng giữa chừng: lệnh phát vừa xong là của trình phát
+            // đã huỷ, cắt luôn kẻo nhạc mồ côi vẫn kêu.
+            unawaited(p.dispose().catchError((Object _) {}));
+            return;
+          }
+          if (_shouldPlay) {
+            _fadeTo(volumeOf(track));
+          } else {
+            _silenceNow();
+          }
         } on Object catch (e) {
           debugPrint('MusicEngine: $e');
         }
@@ -98,7 +114,8 @@ class MusicEngine {
     if (_playing) {
       // Đổi bài: tắt dần bài cũ rồi mới mở bài mới.
       _playing = false;
-      _fadeTo(0, then: () => unawaited(_start()));
+      // Ngắn thôi để nhạc mới vào gần như ngay khi bấm thoát.
+      _fadeTo(0, steps: 4, then: () => unawaited(_start()));
     } else {
       unawaited(_start());
     }
@@ -108,10 +125,11 @@ class MusicEngine {
     final track = _wanted;
     if (_playing || _starting || track == null || !_shouldPlay) return;
     _starting = true;
+    final gen = _gen;
     try {
       var p = _player;
       if (p == null) {
-        p = AudioPlayer(playerId: 'music_bg');
+        p = AudioPlayer(playerId: 'music_bg_${_seq++}');
         _player = p;
         await p.setReleaseMode(ReleaseMode.loop);
       }
@@ -122,33 +140,60 @@ class MusicEngine {
         await p.play(AssetSource('music/$track.mp3'));
         _current = track;
       }
-      _playing = true;
-      // Trong lúc nạp bài người dùng có thể đã tắt tiếng: im ngay.
-      if (_shouldPlay) {
-        _fadeTo(volumeOf(track));
-      } else {
-        _silenceNow();
+      // Tắt tiếng trong lúc nạp (web): người chơi đã bị huỷ, không bật lại.
+      if (gen != _gen || !_shouldPlay) {
+        if (gen == _gen) {
+          _silenceNow();
+        } else {
+          unawaited(p.dispose().catchError((Object _) {}));
+        }
+        return;
       }
+      _playing = true;
+      _fadeTo(volumeOf(track));
     } on Object catch (e) {
       // Chưa được phép phát (cần chạm trước) hoặc thiếu plugin.
       _playing = false;
       if (e is MissingPluginException) _broken = true;
       debugPrint('MusicEngine: $e');
     } finally {
-      _starting = false;
+      if (gen == _gen) _starting = false;
+    }
+    // Bị tắt tiếng giữa chừng rồi bật lại ngay: phát lại từ đầu.
+    if (gen != _gen && _shouldPlay) {
+      _apply();
+      return;
     }
     // Trong lúc nạp bài, màn hình có thể đã đổi: kiểm tra lại.
     if (_playing && _current != _wanted) _apply();
   }
 
-  /// Dừng hẳn ngay, không tắt dần (khi người dùng bấm tắt tiếng).
+  /// Bỏ lệnh phát đang treo: huỷ trình phát, lần _start sau tạo cái mới.
+  void _abandonStart() {
+    _gen++;
+    _starting = false;
+    _current = null;
+    final p = _player;
+    _player = null;
+    if (p != null) unawaited(p.dispose().catchError((Object _) {}));
+  }
+
+  /// Tắt hẳn ngay (khi người dùng bấm tắt tiếng): huỷ luôn trình phát để
+  /// chắc chắn không còn tiếng nào (trên web, pause/stop có thể thua lệnh
+  /// phát đang nạp dở). Bật lại thì tạo trình phát mới.
   void _silenceNow() {
+    _gen++;
     _fade?.cancel();
     _playing = false;
+    _current = null;
     final p = _player;
+    _player = null;
     if (p == null) return;
-    unawaited(p.setVolume(0).catchError((Object _) {}));
+    // Lệnh gửi ngay, không nối chuỗi chờ nhau: trên web một lệnh chờ chậm
+    // có thể bị lệnh phát đang dở đè lên. playerId riêng từng lần tạo để
+    // dispose trình phát cũ không xoá nhầm trình phát mới.
     unawaited(p.pause().catchError((Object _) {}));
+    unawaited(p.dispose().catchError((Object _) {}));
   }
 
   void _stop() {
@@ -158,12 +203,11 @@ class MusicEngine {
     _fadeTo(0, then: () => unawaited(p.pause().catchError((Object _) {})));
   }
 
-  void _fadeTo(double target, {VoidCallback? then}) {
+  void _fadeTo(double target, {int steps = 12, VoidCallback? then}) {
     _fade?.cancel();
     final p = _player;
     if (p == null) return;
     var step = 0;
-    const steps = 12;
     final start = target == 0 ? volumeOf(_current ?? 'lobby') : 0.0;
     _fade = Timer.periodic(const Duration(milliseconds: 35), (t) {
       step++;

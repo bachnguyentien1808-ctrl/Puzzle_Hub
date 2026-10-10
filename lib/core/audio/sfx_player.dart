@@ -35,7 +35,8 @@ class SfxEngine {
   bool _broken = false;
 
   static String assetOf(SfxKind k, [String? theme]) =>
-      'sfx/${theme ?? Sfx.theme}/${k.name}.wav';
+      'sfx/${Sfx.shared.contains(k) ? 'common' : theme ?? Sfx.theme}/'
+      '${k.name}.wav';
 
   static final Set<String> _loaded = {};
 
@@ -86,7 +87,17 @@ class SfxEngine {
         p
             .stop()
             .then((_) => p.setPlaybackRate(rate))
-            .then((_) => p.play(AssetSource(assetOf(kind)), volume: 0.8))
+            .then((_) {
+              // Tắt tiếng trong lúc đang nạp (vd. chính cú bấm nút loa phát
+              // tiếng click): không phát nữa.
+              if (!enabled.value) return null;
+              return p.play(AssetSource(assetOf(kind)), volume: 0.8);
+            })
+            .then((_) {
+              // Phát xong lệnh mà người dùng đã tắt tiếng giữa chừng (web):
+              // cắt luôn.
+              if (!enabled.value) return p.stop();
+            })
             .catchError(_onError),
       );
     } on Object catch (e) {

@@ -74,6 +74,7 @@ class Pressable extends StatefulWidget {
     required this.onTap,
     this.semanticLabel,
     this.borderRadius = 20,
+    this.sfx = SfxKind.click,
     super.key,
   });
 
@@ -81,6 +82,9 @@ class Pressable extends StatefulWidget {
   final VoidCallback? onTap;
   final String? semanticLabel;
   final double borderRadius;
+
+  /// Tiếng khi bấm: nút chức năng = click, thẻ chọn game = select.
+  final SfxKind sfx;
 
   @override
   State<Pressable> createState() => _PressableState();
@@ -115,7 +119,7 @@ class _PressableState extends State<Pressable> {
                 ? null
                 : () {
                     GameFx.tap();
-                    Sfx.play(SfxKind.click);
+                    Sfx.play(widget.sfx);
                     widget.onTap!();
                   },
             child: widget.child,

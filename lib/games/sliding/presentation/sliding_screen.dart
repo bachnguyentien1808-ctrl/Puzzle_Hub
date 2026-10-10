@@ -465,6 +465,7 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
                             if (i > 0) const SizedBox(width: 10),
                             Expanded(
                               child: CandyButton(
+                                sfx: SfxKind.option,
                                 dim: n != _size,
                                 onPressed: () {
                                   if (n == _size) return;
@@ -531,7 +532,10 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
                             selected: i == _art,
                             button: true,
                             child: GestureDetector(
-                              onTap: () => both(() => _art = i),
+                              onTap: () {
+                                Sfx.play(SfxKind.option);
+                                both(() => _art = i);
+                              },
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 160),
                                 width: 64,
@@ -689,10 +693,13 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
                                   selected: _imageMode && i == _art,
                                   button: true,
                                   child: GestureDetector(
-                                    onTap: () => setState(() {
-                                      _art = i;
-                                      _imageMode = true;
-                                    }),
+                                    onTap: () {
+                                      Sfx.play(SfxKind.option);
+                                      setState(() {
+                                        _art = i;
+                                        _imageMode = true;
+                                      });
+                                    },
                                     child: SizedBox(
                                       width: 88,
                                       child: Stack(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
@@ -241,6 +242,7 @@ class SudokuLevelPicker extends StatelessWidget {
                   horizontal: 20,
                   vertical: 18,
                 ),
+                sfx: SfxKind.option,
                 onPressed: () => onPick(l),
                 child: SizedBox(
                   width: double.infinity,

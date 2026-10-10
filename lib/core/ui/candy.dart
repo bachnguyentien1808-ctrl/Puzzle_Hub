@@ -630,11 +630,15 @@ class CandyButton extends StatefulWidget {
     this.padding = const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
     this.dim = false,
     this.circle = false,
+    this.sfx = SfxKind.click,
     super.key,
   });
 
   final Widget child;
   final VoidCallback? onPressed;
+
+  /// Tiếng khi bấm: nút chức năng = click, nút lọc nhóm game = filter, nút chọn lựa chọn = option.
+  final SfxKind sfx;
   final List<Color> colors;
   final double radius;
   final EdgeInsets padding;
@@ -674,7 +678,7 @@ class _CandyButtonState extends State<CandyButton> {
         onTap: widget.onPressed == null
             ? null
             : () {
-                Sfx.play(SfxKind.click);
+                Sfx.play(widget.sfx);
                 widget.onPressed!();
               },
         child: AnimatedScale(

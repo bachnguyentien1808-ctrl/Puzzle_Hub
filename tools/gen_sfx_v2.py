@@ -128,6 +128,9 @@ def fade_out(x, ms=12):
 
 # Chủ đề âm sắc cho từng game (cùng tên với bài nhạc nền).
 THEMES = {
+    # Bộ tiếng DÙNG CHUNG cho mọi màn: nút chức năng, chọn game, chọn nhóm game,
+    # thắng, thua. Giữ trùng danh sách SfxKind.shared trong lib/core/audio/sfx.dart.
+    "common": {"map": {}, "pitch": 1.0},
     "lobby": {"map": {}, "pitch": 1.0},
     "sudoku": {"map": {"sine": "wood", "tri": "wood", "bell": "wood"}, "pitch": 1.12},
     "game2048": {"map": {"sine": "pulse", "tri": "pulse", "square": "pulse", "bell": "pulse"}, "pitch": 1.0},
@@ -140,7 +143,15 @@ THEMES = {
 }
 
 
+SHARED = {"click", "back", "open", "pause", "resume", "newGame", "select",
+          "filter", "option", "win", "lose"}
+CURRENT = {"name": "lobby"}
+
+
 def save(name, x, peak=0.85):
+    # Tiếng dùng chung chỉ sinh vào "common"; tiếng riêng chỉ sinh vào chủ đề game.
+    if (name in SHARED) != (CURRENT["name"] == "common"):
+        return
     x = fade_out(np.asarray(x, dtype=np.float64))
     m = np.max(np.abs(x)) or 1.0
     pcm = (x / m * peak * 32767).astype("<i2")
@@ -181,6 +192,25 @@ def main():
         [(0, lowpass(highpass(noise(0.25, 8, 0.02), 400), 4500), 0.45)]
         + [(0.04 + i * 0.07, tone(f, 0.18, None, "sine", 11), 0.7)
            for i, f in enumerate([C5, E5, G5, C6])], 0.5), 0.75)
+
+    # Chọn một game trên sảnh: "vút" ngắn rồi chuông đôi đi lên.
+    save("select", place([
+        (0, lowpass(highpass(noise(0.14, 14, 0.01), 500), 4000), 0.35),
+        (0, tone(G5, 0.14, None, "tri", 16), 0.8),
+        (0.07, tone(C6, 0.26, None, "bell", 11), 0.85),
+    ], 0.38), 0.75)
+    # Chọn nhóm game (Tất cả / Số / Logic / Trí nhớ): "tích-tách" nhẹ đi lên.
+    save("filter", place([
+        (0, tone(900, 0.05, 1250, "sine", 45, 0.002), 0.9),
+        (0.05, tone(1250, 0.07, None, "sine", 40, 0.002), 0.6),
+    ], 0.14), 0.6)
+
+    # Chọn một lựa chọn trong bảng "Chọn kiểu chơi" (kích thước, độ khó, bộ
+    # hình...): "tóc" gỗ ngắn kèm nốt nhỏ đi lên, khác click và filter.
+    save("option", place([
+        (0, tone(520, 0.06, 470, "wood", 40, 0.002), 0.9),
+        (0.045, tone(C6, 0.12, None, "bell", 16), 0.6),
+    ], 0.2), 0.65)
 
     # ---- Thao tác chung trong game ----
     save("tap", place([(0, tone(520, 0.07, 380, "sine", 40), 1.0)], 0.09), 0.6)
@@ -237,5 +267,6 @@ if __name__ == "__main__":
         THEME["pitch"] = THEMES[theme]["pitch"]
         RNG = np.random.default_rng(7)
         OUT = BASE / theme
+        CURRENT["name"] = theme
         print(f"== {theme}")
         main()

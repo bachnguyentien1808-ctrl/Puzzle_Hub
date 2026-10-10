@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:puzzle_hub/core/audio/sfx.dart';
 import 'package:puzzle_hub/core/daily/daily_challenge.dart';
 import 'package:puzzle_hub/core/score/scoring.dart';
 import 'package:puzzle_hub/core/settings/app_settings.dart';
@@ -386,6 +387,7 @@ class _DailyHero extends StatelessWidget {
     };
     const shadow = [Shadow(color: Color(0x88000000), blurRadius: 3)];
     return Pressable(
+      sfx: SfxKind.select,
       semanticLabel: 'Thử thách hôm nay: ${game?.title ?? gameId}, $statusText',
       borderRadius: 26,
       onTap: () => context.go('/daily'),
@@ -545,6 +547,7 @@ class _ResumeRow extends StatelessWidget {
                     child: _Hoverable(
                       scale: 1.05,
                       child: Pressable(
+                        sfx: SfxKind.select,
                         semanticLabel: 'Chơi tiếp ${g.title}',
                         borderRadius: 18,
                         onTap: () => context.go('/play/${g.id}'),
@@ -619,6 +622,7 @@ class _FilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget chip(int i, GameCategory c, {required bool compact}) => CandyButton(
+      sfx: SfxKind.filter,
       onPressed: () => onChanged(c),
       colors: _palette[i % _palette.length],
       dim: c != value,
@@ -725,6 +729,7 @@ class GameCard extends StatelessWidget {
         children: [
           Positioned.fill(
             child: Pressable(
+              sfx: SfxKind.select,
               semanticLabel: '${game.title}. ${game.subtitle}',
               onTap: () async {
                 // Bấm cả thẻ = chơi lại từ đầu; "Chơi tiếp" mới giữ ván dở.
@@ -773,8 +778,10 @@ class GameCard extends StatelessWidget {
                                       fit: BoxFit.scaleDown,
                                       child: GestureDetector(
                                         behavior: HitTestBehavior.opaque,
-                                        onTap: () =>
-                                            context.go('/play/${game.id}'),
+                                        onTap: () {
+                                          Sfx.play(SfxKind.select);
+                                          context.go('/play/${game.id}');
+                                        },
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
                                             horizontal: 8,

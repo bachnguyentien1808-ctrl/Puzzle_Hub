@@ -8,6 +8,9 @@ enum SfxKind {
   pause,
   resume,
   newGame,
+  select,
+  filter,
+  option,
   // Thao tác trong game.
   tap,
   place,
@@ -28,6 +31,23 @@ enum SfxKind {
 }
 
 abstract final class Sfx {
+  /// Tiếng DÙNG CHUNG cho mọi màn (nút chức năng, chọn game, chọn nhóm game,
+  /// thắng, thua): luôn lấy từ assets/sfx/common, không đổi theo game.
+  /// Giữ trùng `SHARED` trong tools/gen_sfx_v2.py.
+  static const shared = {
+    SfxKind.click,
+    SfxKind.back,
+    SfxKind.open,
+    SfxKind.pause,
+    SfxKind.resume,
+    SfxKind.newGame,
+    SfxKind.select,
+    SfxKind.filter,
+    SfxKind.option,
+    SfxKind.win,
+    SfxKind.lose,
+  };
+
   /// Chủ đề âm sắc hiện tại (trùng tên bài nhạc nền): `lobby` hoặc id file của
   /// game như `sudoku`, `game2048`. Mỗi chủ đề có đủ bộ tiếng riêng.
   static String theme = 'lobby';

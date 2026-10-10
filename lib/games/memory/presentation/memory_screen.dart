@@ -300,11 +300,18 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
             show: _showResult,
             title: 'Hoàn thành!',
             points: _points,
-            subtitle:
-                '${_game.moves} lượt · ${_fmt(_game.seconds)} · '
-                '${_game.stars} sao',
+            stars: _game.stars,
+            starKeyPrefix: 'memory-star',
+            chips: [
+              WinChip(Icons.touch_app_outlined, '${_game.moves} lượt'),
+              WinChip(Icons.timer_outlined, _fmt(_game.seconds)),
+            ],
+            ribbon: _newRecord ? 'Kỷ lục mới! ${_game.moves} lượt' : null,
+            againLabel: _isDaily ? 'Chơi lại' : 'Ván mới',
+            againKey: const ValueKey('memory-again'),
+            onAgain: _restart,
+            onExit: () => context.go(_store.homeRoute),
           ),
-          if (_showResult) _resultPanel(s),
         ],
       ),
     );
@@ -474,63 +481,6 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
           _restart,
         ),
       ],
-    );
-  }
-
-  Widget _resultPanel(ColorScheme s) {
-    return Align(
-      alignment: const Alignment(0, 0.82),
-      child: PopIn(
-        child: CandyFrame(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 1; i <= 3; i++)
-                      Icon(
-                        i <= _game.stars ? Icons.star : Icons.star_border,
-                        key: ValueKey('memory-star-$i'),
-                        size: 36,
-                        color: Colors.amber,
-                      ),
-                  ],
-                ),
-                if (_newRecord)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: CandyRibbon(
-                      text: 'Kỷ lục mới! ${_game.moves} lượt',
-                      colors: Candy.orange,
-                    ),
-                  ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    CandyButton(
-                      key: const ValueKey('memory-again'),
-                      colors: Candy.green,
-                      onPressed: _restart,
-                      child: Text(_isDaily ? 'Chơi lại' : 'Ván mới'),
-                    ),
-                    CandyButton(
-                      colors: Candy.red,
-                      onPressed: () => context.go(_store.homeRoute),
-                      child: const Text('Thoát'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -716,7 +666,10 @@ class _SetupSheetState extends State<_SetupSheet> {
     return GestureDetector(
       key: key,
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
+      onTap: () {
+        Sfx.play(SfxKind.option);
+        onTap();
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

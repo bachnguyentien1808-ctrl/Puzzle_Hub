@@ -11,9 +11,12 @@ void main() {
     final themes = [
       for (final g in gameRegistry) MusicEngine.trackForGame(g.id),
       'lobby',
+      'common',
     ];
     for (final theme in themes) {
       for (final k in SfxKind.values) {
+        // Tiếng dùng chung chỉ nằm ở 'common', tiếng riêng ở từng chủ đề.
+        if (Sfx.shared.contains(k) != (theme == 'common')) continue;
         final f = File('assets/${SfxEngine.assetOf(k, theme)}');
         expect(f.existsSync(), isTrue, reason: 'thiếu ${f.path}');
         final bytes = f.readAsBytesSync();

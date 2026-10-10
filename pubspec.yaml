@@ -67,6 +67,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/sfx/common/
     - assets/sfx/lobby/
     - assets/sfx/sudoku/
     - assets/sfx/game2048/

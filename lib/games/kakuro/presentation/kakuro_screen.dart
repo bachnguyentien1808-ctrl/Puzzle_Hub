@@ -1335,6 +1335,7 @@ class _LevelDialog extends StatelessWidget {
       key: ValueKey('kakuro-level-$i'),
       colors: _colors[i],
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      sfx: SfxKind.option,
       onPressed: () => Navigator.pop(context, i),
       child: Row(
         children: [

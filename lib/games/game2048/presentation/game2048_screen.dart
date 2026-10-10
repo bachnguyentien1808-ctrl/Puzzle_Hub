@@ -305,6 +305,7 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
                       _ => Candy.purple,
                     },
                     dim: n != _g.size,
+                    sfx: SfxKind.option,
                     onPressed: () => Navigator.pop(ctx, n),
                     child: SizedBox(
                       width: double.infinity,
