@@ -195,6 +195,7 @@ void main() {
           'state.2048': '{"cells":[[512,2,0],[0,0,0],[0,0,0]],"score":10,"won":true,"continued":false}',
         },
       );
+      await tester.pump(); // lớp phủ thẻ thắng mở sau khung đầu
       expect(find.text('2048  3x3'), findsOneWidget);
       expect(find.text('Đã đạt 512!'), findsOneWidget);
       await tester.tap(find.text('Tiếp tục'));

@@ -70,6 +70,27 @@ void main() {
     await _unmount(tester);
   });
 
+  testWidgets('hết giờ: hiện thẻ thua và bỏ ván dở', (tester) async {
+    final p = KakuroPuzzle.generate(n: 5, density: 0.7, rng: Random(9));
+    final v = [for (final r in p.solution) ...r];
+    final last = v.lastIndexWhere((x) => x != 0);
+    v[last] = 0;
+    final prefs = await _pump(tester, {
+      'state.kakuro': jsonEncode({
+        'p': p.toJson(),
+        'lv': 0,
+        'v': v,
+        'm': List.filled(v.length, 0),
+        't': 719,
+        'h': 3,
+      }),
+    });
+    expect(find.text('Hết giờ!'), findsNothing);
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('Hết giờ!'), findsOneWidget);
+    expect(prefs.getString('state.kakuro'), isNull);
+  });
+
   testWidgets('khôi phục ván còn một ô, gợi ý thì thắng và ghi kỷ lục', (
     tester,
   ) async {
@@ -87,7 +108,7 @@ void main() {
         'h': 3,
       }),
     });
-    expect(find.text('00:42'), findsOneWidget);
+    expect(find.text('11:18'), findsOneWidget); // còn lại: 720 - 42 giây
     await tester.tap(find.byTooltip('Gợi ý'));
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('Hoàn thành!'), findsOneWidget);

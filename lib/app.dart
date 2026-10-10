@@ -87,12 +87,15 @@ class _PuzzleHubAppState extends ConsumerState<PuzzleHubApp>
       themeAnimationDuration: const Duration(milliseconds: 300),
       builder: (context, child) => BackdropPhaseScope(
         phase: phase,
-        child: Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: (_) => MusicEngine.instance.kick(),
-          child: CandyBackground(
-            light: !phase.isDark,
-            child: child ?? const SizedBox.shrink(),
+        child: BackdropPreloader(
+          phase: phase,
+          child: Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (_) => MusicEngine.instance.kick(),
+            child: CandyBackground(
+              light: !phase.isDark,
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
         ),
       ),

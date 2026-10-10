@@ -59,6 +59,7 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
 
   bool _paused = false;
   bool _won = false;
+  bool _lost = false;
   bool _banner = false;
   int? _points;
   bool _shuffling = false;
@@ -69,7 +70,9 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
   List<int>? _display;
   int _hintsLeft = _maxHints;
   int? _hintTile;
-  String _resultText = '';
+  int _winStars = 3;
+  int _winMs = 0;
+  bool _winRecord = false;
   Offset _pan = Offset.zero;
   bool _panFired = false;
   int _gen = 0;
@@ -174,10 +177,33 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
   bool get _clockRunning => _sw.isRunning;
 
   void _startClock() {
-    if (_won || _paused || _shuffling) return;
+    if (_over || _paused || _shuffling) return;
     _sw.start();
     _timer ??= Timer.periodic(const Duration(milliseconds: 500), (_) {
-      if (_sw.isRunning) _tick.value++;
+      if (!_sw.isRunning) return;
+      _tick.value++;
+      if (_elapsed >= _limitMs) _timeUp();
+    });
+  }
+
+  bool get _over => _won || _lost;
+  int get _limitMs =>
+      Scoring.timeLimit(switch (_game.size) {
+        3 => 90,
+        4 => 240,
+        _ => 600,
+      }) *
+      1000;
+
+  void _timeUp() {
+    _stopClock();
+    _store.clearState(_id);
+    GameFx.error();
+    Sfx.play(SfxKind.lose);
+    setState(() {
+      _lost = true;
+      _hintTile = null;
+      _peek = false;
     });
   }
 
@@ -193,7 +219,7 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
   }
 
   void _save() {
-    if (_won) return;
+    if (_over) return;
     _store.saveState(_id, {
       ..._game.toJson(),
       'mode': _imageMode ? 'img' : 'num',
@@ -233,7 +259,7 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
   }
 
   Future<void> _askNewGame({int? size}) async {
-    if (!_won && !await confirmNewGame(context)) return;
+    if (!_over && !await confirmNewGame(context)) return;
     if (mounted) _newGame(size: size);
   }
 
@@ -245,6 +271,7 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
     setState(() {
       _size = n;
       _won = false;
+      _lost = false;
       _banner = false;
       _points = null;
       _paused = false;
@@ -265,7 +292,7 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
     });
   }
 
-  bool get _locked => _paused || _won || _shuffling;
+  bool get _locked => _paused || _over || _shuffling;
 
   int _inPlaceCount() => _inPlaceSet().length;
 
@@ -355,7 +382,7 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
   }
 
   void _togglePause() {
-    if (_won || _shuffling) return;
+    if (_over || _shuffling) return;
     setState(() {
       if (_paused) {
         _paused = false;
@@ -402,11 +429,17 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
       _hintTile = null;
       _peek = false;
       _paused = false;
-      _resultText =
-          '$moves lượt · ${_fmtTime(ms)}\n'
-          'Kỷ lục ${n}x$n: ${min(moves, oldMoves ?? moves)} lượt · '
-          '${_fmtTime(min(sec, oldTime ?? sec) * 1000)}'
-          '${widget.daily == null && (newMoves || newTime) ? '\nKỷ lục mới!' : ''}';
+      _winMs = ms;
+      _winRecord = widget.daily == null && (newMoves || newTime);
+      _winStars = Scoring.stars(
+        seconds: sec,
+        parSeconds: switch (n) {
+          3 => 90,
+          4 => 240,
+          _ => 600,
+        },
+        hints: _maxHints - _hintsLeft,
+      );
     });
     GameFx.success();
     Sfx.play(SfxKind.win);
@@ -863,8 +896,8 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
                               builder: (_, _, _) => _Stat(
                                 icon: Icons.timer_outlined,
                                 colors: Candy.blue,
-                                label: 'Giờ',
-                                value: _fmtTime(_elapsed),
+                                label: 'Còn lại',
+                                value: _fmtTime(max(0, _limitMs - _elapsed)),
                               ),
                             ),
                             Flexible(
@@ -928,11 +961,23 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
               ),
             ),
             WinBanner(
-              show: _banner,
-              title: 'Hoàn thành!',
-              subtitle: _resultText,
-              points: _points,
+              show: _banner || _lost,
+              lose: _lost,
+              loseIcon: Icons.timer_off_rounded,
+              title: _lost ? 'Hết giờ!' : 'Hoàn thành!',
+              points: _lost ? null : _points,
+              stars: _winStars,
+              chips: [
+                WinChip(Icons.touch_app_outlined, '${_game.moves} lượt'),
+                WinChip(
+                  Icons.timer_outlined,
+                  _fmtTime(_lost ? _limitMs : _winMs),
+                ),
+              ],
+              ribbon: _winRecord ? 'Kỷ lục mới!' : null,
+              againLabel: widget.daily != null ? 'Chơi lại' : 'Ván mới',
               onAgain: _newGame,
+              onExit: () => context.go(_store.homeRoute),
             ),
           ],
         ),
@@ -977,7 +1022,7 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
           ),
           Listener(
             onPointerDown: (_) {
-              if (!_won && !_paused && !_shuffling) {
+              if (!_over && !_paused && !_shuffling) {
                 setState(() => _peek = true);
               }
             },
@@ -993,7 +1038,7 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
           btn(
             _paused ? Icons.play_arrow : Icons.pause,
             _paused ? 'Tiếp tục' : 'Tạm dừng',
-            (_won || _shuffling) ? null : _togglePause,
+            (_over || _shuffling) ? null : _togglePause,
             Candy.orange,
           ),
           btn(

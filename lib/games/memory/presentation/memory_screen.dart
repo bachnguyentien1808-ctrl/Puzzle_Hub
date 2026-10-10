@@ -52,6 +52,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   bool _paused = false;
   bool _peeking = false;
   bool _showResult = false;
+  bool _lost = false;
   bool _newRecord = false;
   int? _points;
   final Set<int> _bad = {};
@@ -83,12 +84,27 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
       }
     }
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || _paused || _peeking || _game.won || !_game.started) {
+      if (!mounted || _paused || _peeking || _over || !_game.started) {
         return;
       }
       setState(() => _game.seconds++);
+      if (_game.seconds >= _limit) {
+        _timeUp();
+        return;
+      }
       if (_game.seconds % 5 == 0) _save();
     });
+  }
+
+  bool get _over => _game.won || _lost;
+  int get _limit => Scoring.timeLimit(_game.size.pairs * 10);
+
+  void _timeUp() {
+    _lost = true;
+    _cancelTimers();
+    _store.clearState(_id);
+    GameFx.error();
+    Sfx.play(SfxKind.lose);
   }
 
   MemoryGame _create(MemorySize size, MemorySet set) =>
@@ -122,6 +138,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
       _paused = false;
       _peeking = false;
       _showResult = false;
+      _lost = false;
       _newRecord = false;
       _points = null;
       _bad.clear();
@@ -140,7 +157,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   }
 
   Future<void> _restart() async {
-    if (!_game.won && !await confirmNewGame(context)) return;
+    if (!_over && !await confirmNewGame(context)) return;
     if (!mounted) return;
     if (_isDaily) {
       _startNew(MemorySize.s4x4, MemorySet.icons);
@@ -149,7 +166,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
     }
   }
 
-  bool get _locked => _paused || _peeking || _game.won;
+  bool get _locked => _paused || _peeking || _over;
 
   void _onTap(int i) {
     if (_locked || _game.waiting) return;
@@ -238,7 +255,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   }
 
   void _togglePause() {
-    if (_game.won) return;
+    if (_over) return;
     setState(() => _paused = !_paused);
     Sfx.play(_paused ? SfxKind.pause : SfxKind.resume);
     if (_paused) _save();
@@ -297,16 +314,21 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
             ),
           ),
           WinBanner(
-            show: _showResult,
-            title: 'Hoàn thành!',
-            points: _points,
+            show: _showResult || _lost,
+            lose: _lost,
+            loseIcon: Icons.timer_off_rounded,
+            title: _lost ? 'Hết giờ!' : 'Hoàn thành!',
+            subtitle: _lost ? 'Thử lại nhé!' : null,
+            points: _lost ? null : _points,
             stars: _game.stars,
             starKeyPrefix: 'memory-star',
             chips: [
               WinChip(Icons.touch_app_outlined, '${_game.moves} lượt'),
               WinChip(Icons.timer_outlined, _fmt(_game.seconds)),
             ],
-            ribbon: _newRecord ? 'Kỷ lục mới! ${_game.moves} lượt' : null,
+            ribbon: _newRecord && !_lost
+                ? 'Kỷ lục mới! ${_game.moves} lượt'
+                : null,
             againLabel: _isDaily ? 'Chơi lại' : 'Ván mới',
             againKey: const ValueKey('memory-again'),
             onAgain: _restart,
@@ -322,8 +344,8 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
       children: [
         _Stat(
           Icons.timer_outlined,
-          _fmt(_game.seconds),
-          'Thời gian',
+          _fmt(max(0, _limit - _game.seconds)),
+          'Còn lại',
           Candy.blue,
         ),
         _Stat(Icons.touch_app_outlined, '${_game.moves}', 'Lượt', Candy.green),
@@ -435,7 +457,7 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
 
   Widget _actions() {
     final canPeek = !_locked && !_game.waiting && _game.peeksLeft > 0;
-    final canPause = !_game.won;
+    final canPause = !_over;
     Widget round(
       Key key,
       String tip,

@@ -252,8 +252,9 @@ class ShakeState extends State<Shake> with SingleTickerProviderStateMixin {
 }
 
 /// Vo man thang: the lon mot khoi (sao bong + chi so + ruy-bang ky luc + diem +
-/// nut), dat len tren man choi, kem phao giay.
-class WinBanner extends StatelessWidget {
+/// nut), kem phao giay. Hien trong Overlay goc cua ung dung nen NOI HAN len
+/// tren toan man hinh (ca thanh tren), khong bi gioi han trong khung game.
+class WinBanner extends StatefulWidget {
   const WinBanner({
     required this.show,
     required this.title,
@@ -268,7 +269,87 @@ class WinBanner extends StatelessWidget {
     this.onExit,
     this.starKeyPrefix,
     this.lose = false,
+    this.loseIcon,
     super.key,
+  });
+
+  final bool show;
+  final String title;
+  final String? subtitle;
+  final VoidCallback? onAgain;
+  final int? points;
+  final int stars;
+  final List<WinChip> chips;
+  final String? ribbon;
+  final String againLabel;
+  final Key? againKey;
+  final VoidCallback? onExit;
+  final String? starKeyPrefix;
+  final bool lose;
+  final IconData? loseIcon;
+
+  @override
+  State<WinBanner> createState() => _WinBannerState();
+}
+
+class _WinBannerState extends State<WinBanner> {
+  final _portal = OverlayPortalController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Không được gọi show() trong lúc build: mở lớp phủ sau khung hình đầu,
+    // rồi chỉ việc đổi nội dung theo widget.show.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _portal.show();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OverlayPortal(
+      controller: _portal,
+      overlayChildBuilder: (_) => !widget.show
+          ? const IgnorePointer(child: SizedBox.shrink())
+          : Material(
+              type: MaterialType.transparency,
+              child: _WinBannerBody(
+                show: true,
+                title: widget.title,
+                subtitle: widget.subtitle,
+                onAgain: widget.onAgain,
+                points: widget.points,
+                stars: widget.stars,
+                chips: widget.chips,
+                ribbon: widget.ribbon,
+                againLabel: widget.againLabel,
+                againKey: widget.againKey,
+                onExit: widget.onExit,
+                starKeyPrefix: widget.starKeyPrefix,
+                lose: widget.lose,
+                loseIcon: widget.loseIcon,
+              ),
+            ),
+    );
+  }
+}
+
+class _WinBannerBody extends StatelessWidget {
+  const _WinBannerBody({
+    required this.show,
+    required this.title,
+    this.subtitle,
+    this.onAgain,
+    this.points,
+    this.stars = 3,
+    this.chips = const [],
+    this.ribbon,
+    this.againLabel = 'Chơi lại',
+    this.againKey,
+    this.onExit,
+    this.starKeyPrefix,
+    this.lose = false,
+    this.loseIcon,
   });
 
   final bool show;
@@ -299,21 +380,41 @@ class WinBanner extends StatelessWidget {
   /// Thẻ thua: bom + sao xám, viền đỏ, ruy-băng đỏ, không có pháo giấy.
   final bool lose;
 
+  /// Thẻ thua: biểu tượng thay quả bom (null = bom).
+  final IconData? loseIcon;
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
         if (show)
-          const Positioned.fill(child: ColoredBox(color: Colors.black45)),
+          Positioned.fill(
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 350),
+              builder: (_, v, _) => DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    radius: 0.9,
+                    colors: [
+                      (lose ? const Color(0xFF7A0C1A) : const Color(0xFF1C3A8F))
+                          .withValues(alpha: 0.55 * v),
+                      Colors.black.withValues(alpha: 0.82 * v),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         Positioned.fill(child: Confetti(show: show && !lose)),
         if (show)
           Positioned.fill(
             child: Center(
-              child: PopIn(
-                duration: const Duration(milliseconds: 420),
+              child: _Impact(
+                lose: lose,
                 child: LayoutBuilder(
                   builder: (context, box) {
-                    final w = min(box.maxWidth - 28, 440).toDouble();
+                    final w = min(box.maxWidth - 20, 480).toDouble();
                     // Màn thấp (điện thoại ngang...) thì thu nhỏ cả thẻ cho vừa.
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -387,13 +488,13 @@ class WinBanner extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (lose)
-                      const _BombHero()
+                      _BombHero(icon: loseIcon)
                     else
                       _StarsHero(lit: stars, keyPrefix: starKeyPrefix),
                     const SizedBox(height: 6),
                     _outlined(
                       title,
-                      44,
+                      50,
                       lose ? const Color(0xFF8A1020) : const Color(0xFF14226B),
                     ),
                     if (chips.isNotEmpty)
@@ -989,7 +1090,10 @@ class _GlossStarPainter extends CustomPainter {
 
 /// Bom đỏ nứt có đầu lâu trắng, ba sao xám phía sau, mảnh vỡ đỏ bắn ra.
 class _BombHero extends StatelessWidget {
-  const _BombHero();
+  const _BombHero({this.icon});
+
+  /// Có thì thay quả bom bằng biểu tượng này (vd đồng hồ khi hết giờ).
+  final IconData? icon;
 
   static const _shards = [
     (0.20, 0.20, -0.6),
@@ -1048,14 +1152,34 @@ class _BombHero extends StatelessWidget {
               Positioned(left: w * 0.5 - 118, bottom: 30, child: grey(78)),
               Positioned(right: w * 0.5 - 118, bottom: 30, child: grey(78)),
               Positioned(bottom: 6, child: grey(76)),
-              const Positioned(
-                top: 0,
-                child: SizedBox(
-                  width: 130,
-                  height: 140,
-                  child: CustomPaint(painter: _BombPainter()),
+              if (icon != null)
+                Positioned(
+                  top: 8,
+                  child: Container(
+                    width: 124,
+                    height: 124,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const RadialGradient(
+                        colors: [Color(0xFFFF6B5B), Color(0xFFC81E32)],
+                      ),
+                      border: Border.all(color: Colors.white, width: 5),
+                      boxShadow: const [
+                        BoxShadow(color: Color(0x88FF3B3B), blurRadius: 24),
+                      ],
+                    ),
+                    child: Icon(icon, size: 76, color: Colors.white),
+                  ),
+                )
+              else
+                const Positioned(
+                  top: 0,
+                  child: SizedBox(
+                    width: 130,
+                    height: 140,
+                    child: CustomPaint(painter: _BombPainter()),
+                  ),
                 ),
-              ),
             ],
           );
         },
@@ -1181,4 +1305,50 @@ class _BombPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Thẻ thắng/thua bật ra thật mạnh: phóng to từ nhỏ có độ nảy; thẻ thua rung
+/// ngang vài nhịp, thẻ thắng có vầng sáng vàng đập nhẹ phía sau.
+class _Impact extends StatelessWidget {
+  const _Impact({required this.child, required this.lose});
+
+  final Widget child;
+  final bool lose;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 700),
+      builder: (_, t, child) {
+        final pop = Curves.easeOutBack.transform(min(1, t * 1.4));
+        final shake = lose ? sin(t * 38) * 14 * (1 - t) * (1 - t) : 0.0;
+        final halo = lose ? 0.0 : (0.35 + 0.25 * sin(t * 12)) * min(1, t * 3);
+        return Opacity(
+          opacity: min(1, t * 4),
+          child: Transform.translate(
+            offset: Offset(shake, 0),
+            child: Transform.scale(
+              scale: 0.3 + 0.7 * pop,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(48),
+                  boxShadow: [
+                    if (!lose)
+                      BoxShadow(
+                        color: const Color(0xFFFFC73A).withValues(alpha: halo),
+                        blurRadius: 70,
+                        spreadRadius: 14,
+                      ),
+                  ],
+                ),
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
+      child: child,
+    );
+  }
 }

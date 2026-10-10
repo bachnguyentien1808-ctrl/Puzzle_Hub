@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/features/achievements/achievements_screen.dart';
 import 'package:puzzle_hub/features/common/game_overlays.dart';
 import 'package:puzzle_hub/features/daily/daily_screen.dart';
+import 'package:puzzle_hub/features/demo/result_demo_screen.dart';
 import 'package:puzzle_hub/features/home/home_screen.dart';
 import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/features/settings/settings_screen.dart';
@@ -39,6 +40,7 @@ final appRouter = GoRouter(
     _route('/settings', (_) => const SettingsScreen()),
     _route('/achievements', (_) => const AchievementsScreen()),
     _route('/stats', (_) => const StatsScreen()),
+    _route('/demo-ket-qua', (_) => const ResultDemoScreen()),
     _route('/daily', (_) => const DailyScreen()),
     _route('/daily/play', (_) => const DailyPlayScreen()),
     for (final g in gameRegistry)

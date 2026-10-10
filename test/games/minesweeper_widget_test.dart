@@ -59,7 +59,7 @@ void main() {
       prefs: {'state.minesweeper': _oneMineState()},
     );
     expect(find.textContaining('Dễ · 9x9 · 1 mìn'), findsOneWidget);
-    expect(find.text('7 s'), findsOneWidget);
+    expect(find.text('05:53'), findsOneWidget); // còn lại: 360 - 7 giây
     await tester.tap(find.byKey(const Key('cell-8-8')));
     await tester.pump(const Duration(seconds: 4));
     expect(find.text('Dò mìn - Thắng!'), findsOneWidget);

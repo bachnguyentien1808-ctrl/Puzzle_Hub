@@ -101,6 +101,8 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
   final _timers = <Timer>[];
   int? _hint;
   bool _won = false;
+  bool _lost = false;
+  Timer? _tick;
   bool _banner = false;
   int _stars = 0;
   int _starsShown = 0;
@@ -142,6 +144,26 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
       _save();
     }
     _shown = [for (final r in _game.cells) List.of(r)];
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || _over || !_clock.isRunning) return;
+      if (_clock.elapsed.inSeconds >= _limit) {
+        _timeUp();
+      } else {
+        setState(() {});
+      }
+    });
+  }
+
+  bool get _over => _won || _lost;
+  int get _limit => Scoring.timeLimit(_game.size * _game.size * 6);
+  int get _left => max(0, _limit - _clock.elapsed.inSeconds);
+
+  void _timeUp() {
+    _clock.stop();
+    _store.clearState(_stateId);
+    GameFx.error();
+    Sfx.play(SfxKind.lose);
+    setState(() => _lost = true);
   }
 
   LightsOut _newGame() => switch (_s.mode) {
@@ -152,6 +174,7 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
 
   @override
   void dispose() {
+    _tick?.cancel();
     _cancelTimers();
     super.dispose();
   }
@@ -204,7 +227,7 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
   }
 
   void _tap(int r, int c) {
-    if (_won) return;
+    if (_over) return;
     _clock.start();
     setState(() {
       _game.press(r, c);
@@ -309,7 +332,7 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
   }
 
   void _undo() {
-    if (_won || _game.undo() == null) return;
+    if (_over || _game.undo() == null) return;
     setState(() {
       _hint = null;
       _syncAll();
@@ -320,7 +343,7 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
   }
 
   void _showHint() {
-    if (_won || _hint != null) return;
+    if (_over || _hint != null) return;
     final h = _game.useHint();
     if (h == null) {
       GameFx.error();
@@ -334,7 +357,7 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
   }
 
   Future<void> _askRestart() async {
-    if (!_won && !await confirmNewGame(context)) return;
+    if (!_over && !await confirmNewGame(context)) return;
     if (mounted) _restart();
   }
 
@@ -352,6 +375,7 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
         _game.reset();
       }
       _won = false;
+      _lost = false;
       _points = null;
       _clock
         ..stop()
@@ -408,6 +432,11 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
                           GlassBar(
                             children: [
                               _stat(
+                                Icons.timer_outlined,
+                                _left <= 30 ? Candy.red : Candy.purple,
+                                '${_left ~/ 60}:${(_left % 60).toString().padLeft(2, '0')}',
+                              ),
+                              _stat(
                                 Icons.touch_app_outlined,
                                 Candy.blue,
                                 'Lượt ${_game.moves}',
@@ -446,7 +475,7 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
                             ),
                           ),
                           const SizedBox(height: 14),
-                          if (!_won)
+                          if (!_over)
                             GlassPanel(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
@@ -530,12 +559,21 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
               ),
             Positioned.fill(
               child: WinBanner(
-                show: _banner,
-                points: _points,
-                title: 'Tắt hết đèn!',
-                subtitle:
-                    '${_game.moves} lượt (tối ưu ${_game.optimal ?? '?'})',
+                show: _banner || _lost,
+                lose: _lost,
+                loseIcon: Icons.timer_off_rounded,
+                points: _lost ? null : _points,
+                title: _lost ? 'Hết giờ!' : 'Tắt hết đèn!',
+                stars: _stars,
+                chips: [
+                  WinChip(Icons.touch_app_outlined, '${_game.moves} lượt'),
+                  WinChip(
+                    Icons.emoji_events_outlined,
+                    'Tối ưu ${_game.optimal ?? '?'}',
+                  ),
+                ],
                 onAgain: _restart,
+                onExit: widget.onExit,
               ),
             ),
           ],

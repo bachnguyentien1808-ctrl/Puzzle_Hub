@@ -486,6 +486,26 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
                   ),
                 ),
                 Positioned.fill(child: Confetti(show: _confetti)),
+                Positioned.fill(
+                  child: WinBanner(
+                    show: won || over,
+                    lose: over && !won,
+                    title: won ? 'Đã đạt ${_g.target}!' : 'Hết nước đi',
+                    subtitle: over && !won ? 'Thử lại nhé!' : null,
+                    points: won ? _points : null,
+                    stars: won
+                        ? Scoring.stars(
+                            seconds: _sw.elapsed.inSeconds,
+                            parSeconds: 480,
+                            hints: Game2048.maxUndos - _g.undosLeft,
+                          )
+                        : 0,
+                    chips: [WinChip(Icons.stars_rounded, '${_g.score} điểm')],
+                    againLabel: won ? 'Tiếp tục' : 'Chơi lại',
+                    onAgain: won ? _continue : _restart,
+                    onExit: () => context.go('/'),
+                  ),
+                ),
               ],
             ),
           ),
@@ -598,114 +618,11 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
                       ),
                     ),
                   ),
-                Positioned.fill(
-                  child: AnimatedSwitcher(
-                    duration: Duration(milliseconds: _animate ? 600 : 0),
-                    child: won
-                        ? _Overlay(
-                            key: const ValueKey('won'),
-                            title: 'Đã đạt ${_g.target}!',
-                            points: _points,
-                            primaryLabel: 'Tiếp tục',
-                            onPrimary: _continue,
-                            secondaryLabel: 'Ván mới',
-                            onSecondary: _restart,
-                          )
-                        : over
-                        ? _Overlay(
-                            key: const ValueKey('over'),
-                            title: 'Hết nước đi',
-                            primaryLabel: 'Chơi lại',
-                            onPrimary: _restart,
-                            secondaryLabel: _g.canUndo ? 'Hoàn tác' : null,
-                            onSecondary: _g.canUndo ? _undo : null,
-                          )
-                        : const SizedBox.shrink(key: ValueKey('none')),
-                  ),
-                ),
               ],
             ),
           ),
         );
       },
-    );
-  }
-}
-
-class _Overlay extends StatelessWidget {
-  const _Overlay({
-    required this.title,
-    required this.primaryLabel,
-    required this.onPrimary,
-    this.secondaryLabel,
-    this.onSecondary,
-    this.points,
-    super.key,
-  });
-
-  final String title;
-  final String primaryLabel;
-  final VoidCallback onPrimary;
-  final String? secondaryLabel;
-  final VoidCallback? onSecondary;
-  final int? points;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.45),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Center(
-        // Tieu de + nut gom chung trong mot khoi thong bao.
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 300),
-            child: CandyFrame(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CandyRibbon(text: title, colors: Candy.orange),
-                    if (points != null && points! > 0) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        '+${Scoring.format(points!)} điểm',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 18),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 12,
-                      runSpacing: 10,
-                      children: [
-                        CandyButton(
-                          colors: Candy.green,
-                          onPressed: onPrimary,
-                          child: Text(primaryLabel),
-                        ),
-                        if (secondaryLabel != null)
-                          CandyButton(
-                            onPressed: onSecondary,
-                            child: Text(secondaryLabel!),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

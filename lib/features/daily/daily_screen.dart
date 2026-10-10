@@ -8,6 +8,7 @@ import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/game_logo.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
+import 'package:puzzle_hub/features/common/card_close_button.dart';
 import 'package:puzzle_hub/features/common/shell_widgets.dart';
 import 'package:puzzle_hub/games/game_registry.dart';
 
@@ -280,10 +281,7 @@ class _TodayCard extends StatelessWidget {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    Hero(
-                      tag: 'daily-icon',
-                      child: GameLogo(id: gameId, size: 80),
-                    ),
+                    GameLogo(id: gameId, size: 80),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -808,59 +806,71 @@ class _MonthPickerDialogState extends State<_MonthPickerDialog> {
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 380),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xFFFFF6E3), Candy.cream],
-              ),
-              border: Border.all(color: Candy.bgTop, width: 4),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
+          child: Stack(
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 46, 16, 16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFFFFF6E3), Candy.cream],
+                  ),
+                  border: Border.all(color: Candy.bgTop, width: 4),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      tooltip: 'Năm trước',
-                      color: _ink,
-                      icon: const Icon(Icons.chevron_left),
-                      onPressed: () => setState(() => _year--),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '$_year',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
+                    Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Năm trước',
                           color: _ink,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
+                          icon: const Icon(Icons.chevron_left),
+                          onPressed: () => setState(() => _year--),
                         ),
-                      ),
+                        Expanded(
+                          child: Text(
+                            '$_year',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: _ink,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Năm sau',
+                          color: _ink,
+                          icon: const Icon(Icons.chevron_right),
+                          onPressed: () => setState(() => _year++),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      tooltip: 'Năm sau',
-                      color: _ink,
-                      icon: const Icon(Icons.chevron_right),
-                      onPressed: () => setState(() => _year++),
+                    const SizedBox(height: 8),
+                    GridView.count(
+                      crossAxisCount: 4,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 1.5,
+                      children: [for (var m = 1; m <= 12; m++) _monthButton(m)],
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                GridView.count(
-                  crossAxisCount: 4,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: 1.5,
-                  children: [for (var m = 1; m <= 12; m++) _monthButton(m)],
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: CardCloseButton(
+                  key: const ValueKey('daily-month-close'),
+                  onTap: () => Navigator.pop(context),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

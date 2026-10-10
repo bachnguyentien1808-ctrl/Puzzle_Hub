@@ -35,6 +35,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Mở ô'), findsOneWidget);
     expect(find.text('Bước 1/4'), findsOneWidget);
+    expect(find.byKey(const Key('tutorial-back')), findsNothing);
 
     // Di het cac buoc toi trang chu thich roi bat dau choi.
     for (var i = 0; i < 4; i++) {
@@ -42,6 +43,12 @@ void main() {
       await tester.pumpAndSettle();
     }
     expect(find.text('Chú thích'), findsOneWidget);
+    // Có nút Quay lại để đọc lại bước trước.
+    await tester.tap(find.byKey(const Key('tutorial-back')));
+    await tester.pumpAndSettle();
+    expect(find.text('Bước 4/4'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('tutorial-next')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Bắt đầu chơi'));
     await tester.pumpAndSettle();
     expect(find.text('Chú thích'), findsNothing);

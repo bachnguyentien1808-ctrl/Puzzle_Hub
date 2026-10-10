@@ -66,6 +66,7 @@ class _NonogramPlayState extends State<NonogramPlay>
   final bool _check = false;
   bool _banner = false;
   bool _won = false;
+  bool _lost = false;
   int _stars = 0;
   int? _points;
 
@@ -104,13 +105,23 @@ class _NonogramPlayState extends State<NonogramPlay>
 
   int get _n => _g.size;
 
+  bool get _over => _won || _lost;
+  int get _limit => Scoring.timeLimit(_g.size * 50);
+
+  void _timeUp() {
+    _lost = true;
+    GameFx.error();
+    Sfx.play(SfxKind.lose);
+  }
+
   @override
   void initState() {
     super.initState();
     _won = _g.isSolved && !_g.isBlank;
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || _won || _paused) return;
+      if (!mounted || _over || _paused) return;
       setState(() => _seconds++);
+      if (_seconds >= _limit) _timeUp();
     });
   }
 
@@ -135,7 +146,7 @@ class _NonogramPlayState extends State<NonogramPlay>
   int get _toolValue => _tool == NonogramTool.fill ? toolFill : toolMark;
 
   void _down(PointerDownEvent e, double cell) {
-    if (_tool == NonogramTool.move || _won || _paused) return;
+    if (_tool == NonogramTool.move || _over || _paused) return;
     final (r, c) = _cellAt(e.localPosition, cell);
     _wasBlankAtStart = _g.isBlank;
     _beforeRows = [for (var i = 0; i < _n; i++) _g.rowDone(i)];
@@ -288,21 +299,21 @@ class _NonogramPlayState extends State<NonogramPlay>
   }
 
   void _togglePause() {
-    if (_won) return;
+    if (_over) return;
     setState(() => _paused = !_paused);
     Sfx.play(_paused ? SfxKind.pause : SfxKind.resume);
     if (_paused) widget.onSave(_seconds);
   }
 
   void _undo() {
-    if (_won || _paused || !_g.undo()) return;
+    if (_over || _paused || !_g.undo()) return;
     Sfx.play(SfxKind.erase);
     setState(() {});
     widget.onSave(_seconds);
   }
 
   void _hint() {
-    if (_won || _paused) return;
+    if (_over || _paused) return;
     _beforeRows = [for (var i = 0; i < _n; i++) _g.rowDone(i)];
     _beforeCols = [for (var i = 0; i < _n; i++) _g.colDone(i)];
     final h = _g.hint(_rng);
@@ -313,7 +324,7 @@ class _NonogramPlayState extends State<NonogramPlay>
   }
 
   Future<void> _askRestart() async {
-    if (!_won && !await confirmNewGame(context)) return;
+    if (!_over && !await confirmNewGame(context)) return;
     if (mounted) _restart();
   }
 
@@ -323,6 +334,7 @@ class _NonogramPlayState extends State<NonogramPlay>
       _g.clear();
       _seconds = 0;
       _won = false;
+      _lost = false;
       _paused = false;
       _points = null;
       _banner = false;
@@ -332,6 +344,13 @@ class _NonogramPlayState extends State<NonogramPlay>
   }
 
   void _back() {
+    if (_lost) {
+      // Hết giờ: bỏ ván dở để lần vào sau có thời gian mới.
+      _g.clear();
+      widget.onSave(0);
+      widget.onBack();
+      return;
+    }
     widget.onSave(_seconds);
     widget.onBack();
   }
@@ -375,7 +394,9 @@ class _NonogramPlayState extends State<NonogramPlay>
                               children: [
                                 GlassStat(
                                   icon: Icons.timer_outlined,
-                                  text: formatSeconds(_seconds),
+                                  text: formatSeconds(
+                                    max(0, _limit - _seconds),
+                                  ),
                                 ),
                                 GlassStat(
                                   icon: Icons.close_rounded,
@@ -421,7 +442,7 @@ class _NonogramPlayState extends State<NonogramPlay>
                                   GameActionButton(
                                     icon: Icons.undo,
                                     tooltip: 'Hoàn tác',
-                                    onPressed: _g.canUndo && !_won
+                                    onPressed: _g.canUndo && !_over
                                         ? _undo
                                         : null,
                                   ),
@@ -433,7 +454,7 @@ class _NonogramPlayState extends State<NonogramPlay>
                                     tooltip: _paused ? 'Tiếp tục' : 'Tạm dừng',
                                     colors: Candy.orange,
                                     dim: _paused,
-                                    onPressed: _won ? null : _togglePause,
+                                    onPressed: _over ? null : _togglePause,
                                   ),
                                   GameActionButton(
                                     icon: Icons.refresh_rounded,
@@ -448,7 +469,7 @@ class _NonogramPlayState extends State<NonogramPlay>
                                     badge: _g.hintsLeft > 0
                                         ? '${_g.hintsLeft}'
                                         : null,
-                                    onPressed: _g.hintsLeft > 0 && !_won
+                                    onPressed: _g.hintsLeft > 0 && !_over
                                         ? _hint
                                         : null,
                                   ),
@@ -464,12 +485,19 @@ class _NonogramPlayState extends State<NonogramPlay>
               ),
               Positioned.fill(
                 child: WinBanner(
-                  show: _banner,
-                  points: _points,
-                  title: 'Hoàn thành!',
-                  subtitle:
-                      '${_pic.name} · ${formatSeconds(_seconds)} · ${'★' * _stars}${'☆' * (3 - _stars)}',
-                  onAgain: _back,
+                  show: _banner || _lost,
+                  lose: _lost,
+                  loseIcon: Icons.timer_off_rounded,
+                  points: _lost ? null : _points,
+                  title: _lost ? 'Hết giờ!' : 'Hoàn thành!',
+                  stars: _stars,
+                  subtitle: _lost ? 'Thử lại nhé!' : _pic.name,
+                  chips: [
+                    WinChip(Icons.timer_outlined, formatSeconds(_seconds)),
+                    WinChip(Icons.close_rounded, '${_g.mistakes} lỗi'),
+                  ],
+                  onAgain: _restart,
+                  onExit: _back,
                 ),
               ),
             ],

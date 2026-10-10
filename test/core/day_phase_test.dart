@@ -11,7 +11,8 @@ void main() {
     expect(at(12, 0), DayPhase.day);
     expect(at(16, 29), DayPhase.day);
     expect(at(16, 30), DayPhase.dusk);
-    expect(at(18, 59), DayPhase.dusk);
+    expect(at(18, 29), DayPhase.dusk);
+    expect(at(18, 30), DayPhase.night);
     expect(at(19, 0), DayPhase.night);
     expect(at(0, 0), DayPhase.night);
   });

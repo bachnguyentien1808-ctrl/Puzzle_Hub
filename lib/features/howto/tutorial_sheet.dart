@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
+import 'package:puzzle_hub/core/ui/score_chip.dart';
+import 'package:puzzle_hub/features/common/hub_panels.dart';
+import 'package:puzzle_hub/features/common/start_menu.dart';
 import 'package:puzzle_hub/features/howto/game_tutorials.dart';
 import 'package:puzzle_hub/games/game_registry.dart';
 
@@ -54,9 +58,19 @@ class GameIntro extends ConsumerStatefulWidget {
 }
 
 class _GameIntroState extends ConsumerState<GameIntro> {
+  /// Có ván đang chơi dở: hỏi Tiếp tục hay Chơi mới trước khi vào game.
+  late bool _asking;
+
   @override
   void initState() {
     super.initState();
+    final store = ref.read(progressStoreProvider);
+    _asking = store.hasState(widget.gameId);
+    if (!_asking) _maybeTutorial();
+  }
+
+  /// Lần đầu vào game tự mở hướng dẫn (chỉ một lần).
+  void _maybeTutorial() {
     final store = ref.read(progressStoreProvider);
     if (store.tutorialSeen(widget.gameId)) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -66,9 +80,46 @@ class _GameIntroState extends ConsumerState<GameIntro> {
     });
   }
 
+  void _resume() {
+    setState(() => _asking = false);
+    _maybeTutorial();
+  }
+
+  Future<void> _startNew() async {
+    // Chơi mới: bỏ ván dở trước khi game nạp, game sẽ mở màn chọn mức.
+    await ref.read(progressStoreProvider).clearState(widget.gameId);
+    if (!mounted) return;
+    setState(() => _asking = false);
+    _maybeTutorial();
+  }
+
   @override
-  Widget build(BuildContext context) =>
-      GameBackdrop(gameId: widget.gameId, child: widget.child);
+  Widget build(BuildContext context) {
+    if (_asking) {
+      return GameBackdrop(
+        gameId: widget.gameId,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            automaticallyImplyLeading: false,
+            actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
+          ),
+          body: StartChoicePanel(
+            gameId: widget.gameId,
+            keyPrefix: 'start',
+            resumeSubtitle: 'Vào lại ván đang chơi dở',
+            newSubtitle: 'Bỏ ván dở và bắt đầu ván mới',
+            onResume: _resume,
+            onNew: _startNew,
+            onClose: () => context.go('/'),
+          ),
+        ),
+      );
+    }
+    return GameBackdrop(gameId: widget.gameId, child: widget.child);
+  }
 }
 
 class TutorialSheet extends StatefulWidget {
@@ -100,6 +151,14 @@ class _TutorialSheetState extends State<TutorialSheet> {
       return;
     }
     _page.nextPage(
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _back() {
+    if (_i == 0) return;
+    _page.previousPage(
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeOut,
     );
@@ -175,18 +234,56 @@ class _TutorialSheetState extends State<TutorialSheet> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(14),
-                  child: CandyButton(
-                    key: const Key('tutorial-next'),
-                    onPressed: _next,
-                    colors: _last ? Candy.green : Candy.blue,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 40,
-                      vertical: 12,
-                    ),
-                    child: Text(
-                      _last ? 'Bắt đầu chơi' : 'Tiếp',
-                      style: const TextStyle(fontSize: 16),
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_i > 0) ...[
+                        Flexible(
+                          child: CandyButton(
+                            key: const Key('tutorial-back'),
+                            onPressed: _back,
+                            colors: Candy.orange,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 12,
+                            ),
+                            child: const FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.chevron_left_rounded),
+                                  SizedBox(width: 2),
+                                  Text(
+                                    'Quay lại',
+                                    style: TextStyle(fontSize: 16),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+                      Flexible(
+                        child: CandyButton(
+                          key: const Key('tutorial-next'),
+                          onPressed: _next,
+                          colors: _last ? Candy.green : Candy.blue,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: _i > 0 ? 18 : 40,
+                            vertical: 12,
+                          ),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              _last ? 'Bắt đầu chơi' : 'Tiếp',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

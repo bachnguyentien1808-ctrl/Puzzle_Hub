@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -231,16 +232,7 @@ class _AnimatedBackdropState extends State<AnimatedBackdrop>
                     fit: StackFit.expand,
                     children: [...previous, ?current],
                   ),
-                  child: Image.asset(
-                    path,
-                    key: ValueKey(path),
-                    width: double.infinity,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
-                    filterQuality: FilterQuality.high,
-                    gaplessPlayback: true,
-                    errorBuilder: (_, _, _) => const SizedBox.shrink(),
-                  ),
+                  child: _BackdropImage(key: ValueKey(path), path: path),
                 ),
               ),
             ),
@@ -592,6 +584,9 @@ class CandyGloss extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Nút/ô tròn: không vẽ vệt bóng. Vệt trắng mờ ở đỉnh vòng tròn trông như
+    // vết bẩn (và nếu rộng bằng cả nút thì tràn ra ngoài vòng).
+    if (radius >= 60) return const SizedBox.shrink();
     return Positioned.fill(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(3, 2, 3, 0),
@@ -709,32 +704,36 @@ class _CandyButtonState extends State<CandyButton> {
                 ),
               ],
             ),
-            child: Stack(
-              // Chu trong nut luon nam giua, ke ca khi nut gian het chieu ngang.
-              alignment: Alignment.center,
-              children: [
-                CandyGloss(radius: r),
-                Padding(
-                  padding: widget.padding,
-                  child: Center(
-                    widthFactor: 1,
-                    heightFactor: 1,
-                    child: DefaultTextStyle.merge(
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        shadows: [
-                          Shadow(color: Color(0x88000000), blurRadius: 2),
-                        ],
-                      ),
-                      child: IconTheme.merge(
-                        data: const IconThemeData(color: Colors.white),
-                        child: widget.child,
+            child: ClipRRect(
+              // Cắt mọi lớp bên trong theo đúng hình nút (tròn hay bo góc).
+              borderRadius: BorderRadius.circular(r),
+              child: Stack(
+                // Chu trong nut luon nam giua, ke ca khi nut gian het chieu ngang.
+                alignment: Alignment.center,
+                children: [
+                  CandyGloss(radius: r),
+                  Padding(
+                    padding: widget.padding,
+                    child: Center(
+                      widthFactor: 1,
+                      heightFactor: 1,
+                      child: DefaultTextStyle.merge(
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          shadows: [
+                            Shadow(color: Color(0x88000000), blurRadius: 2),
+                          ],
+                        ),
+                        child: IconTheme.merge(
+                          data: const IconThemeData(color: Colors.white),
+                          child: widget.child,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -925,4 +924,100 @@ class CandyFrame extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Ảnh nền có thử tải lại: nếu lần tải đầu lỗi (mạng/máy chủ chập chờn khi đổi
+/// buổi) thì thử lại vài lần thay vì để mất ảnh, chỉ còn nền gradient.
+class _BackdropImage extends StatefulWidget {
+  const _BackdropImage({required this.path, super.key});
+
+  final String path;
+
+  @override
+  State<_BackdropImage> createState() => _BackdropImageState();
+}
+
+class _BackdropImageState extends State<_BackdropImage> {
+  int _attempt = 0;
+  Timer? _retry;
+
+  @override
+  void dispose() {
+    _retry?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleRetry() {
+    if (_attempt >= 5 || (_retry?.isActive ?? false)) return;
+    _retry = Timer(Duration(seconds: 1 + _attempt), () {
+      if (mounted) setState(() => _attempt++);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      widget.path,
+      key: ValueKey('${widget.path}#$_attempt'),
+      width: double.infinity,
+      height: double.infinity,
+      fit: BoxFit.cover,
+      filterQuality: FilterQuality.high,
+      gaplessPlayback: true,
+      errorBuilder: (_, _, _) {
+        _scheduleRetry();
+        return const SizedBox.shrink();
+      },
+    );
+  }
+}
+
+/// Tải sẵn (precache) mọi ảnh nền ngay khi mở app, buổi hiện tại trước: nhờ đó
+/// vào game hay đổi buổi là có ảnh ngay, không bị trống nền vài giây.
+class BackdropPreloader extends StatefulWidget {
+  const BackdropPreloader({
+    required this.phase,
+    required this.child,
+    super.key,
+  });
+
+  final DayPhase phase;
+  final Widget child;
+
+  @override
+  State<BackdropPreloader> createState() => _BackdropPreloaderState();
+}
+
+class _BackdropPreloaderState extends State<BackdropPreloader> {
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final phases = [
+      widget.phase,
+      ...DayPhase.values.where((p) => p != widget.phase),
+    ];
+    final paths = <String>{
+      for (final p in phases)
+        for (final scene in const ['bg_sky', 'bg_game'])
+          BackdropAssets.resolve('assets/images/$scene.webp', p),
+    };
+    // Lần lượt từng ảnh để ảnh của buổi hiện tại về trước, không nghẽn mạng.
+    () async {
+      for (final path in paths) {
+        if (!mounted) return;
+        try {
+          await precacheImage(AssetImage(path), context);
+        } on Object {
+          // Lỗi tải: bỏ qua, ảnh nền sẽ tự thử tải lại khi được dùng.
+        }
+      }
+    }();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

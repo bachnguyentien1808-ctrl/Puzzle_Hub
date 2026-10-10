@@ -132,7 +132,10 @@ class SudokuGame {
     return true;
   }
 
-  bool get isLost => mistakeLimit && mistakes >= maxMistakes;
+  /// Hết giờ (không lưu: ván hết giờ bị bỏ, không khôi phục).
+  bool timedOut = false;
+
+  bool get isLost => timedOut || (mistakeLimit && mistakes >= maxMistakes);
   bool get isOver => isWon || isLost;
   int get hintsLeft => maxHints - hintsUsed;
 
@@ -325,6 +328,7 @@ class SudokuGame {
     mistakes = 0;
     hintsUsed = 0;
     elapsed = 0;
+    timedOut = false;
     _undo.clear();
     _redo.clear();
   }

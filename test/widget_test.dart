@@ -27,9 +27,7 @@ Future<void> _pumpHome(WidgetTester tester, Map<String, Object> prefs) async {
 }
 
 void main() {
-  testWidgets('man hinh chinh: hero ngay, choi tiep, the game, thong ke', (
-    tester,
-  ) async {
+  testWidgets('man hinh chinh: hero ngay, the game, thong ke', (tester) async {
     await _pumpHome(tester, {
       'settings.onboarded': true,
       'stats.sudoku': '{"played":3,"won":1,"best":null}',
@@ -39,8 +37,8 @@ void main() {
     expect(find.text('Thử thách hôm nay'), findsOneWidget);
     expect(find.text('Sudoku'), findsWidgets);
     expect(find.text('Đã chơi 3 · Thắng 1'), findsOneWidget);
-    // Hang "Choi tiep" + chip tren the.
-    expect(find.text('Chơi tiếp'), findsNWidgets(2));
+    // Khong con hang "Choi tiep": co van do thi hoi khi vao game.
+    expect(find.text('Chơi tiếp'), findsNothing);
     expect(find.byTooltip('Menu'), findsOneWidget);
     expect(find.byTooltip('Thống kê'), findsNothing);
   });

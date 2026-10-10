@@ -152,12 +152,16 @@ void main() {
       await tester.tap(_pad(v));
       await _step(tester);
     }
+    await tester.pump(); // lớp phủ thẻ thua vẽ ở khung kế tiếp
+    expect(find.text('Bạn đã thua!'), findsOneWidget);
     expect(find.text('Hết lượt sai'), findsOneWidget);
-    expect(find.text('Chơi tiếp, bỏ giới hạn'), findsOneWidget);
-    await tester.tap(find.text('Chơi tiếp, bỏ giới hạn'));
+    expect(find.text('Chơi tiếp, bỏ giới hạn'), findsNothing);
+    expect(find.text('Thoát'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('sudoku-result-next')));
     await _step(tester);
-    expect(find.text('Hết lượt sai'), findsNothing);
-    expect(find.text('Lỗi 3'), findsOneWidget);
+    // Chơi lại: cùng đề, xoá lỗi, thẻ thua biến mất.
+    expect(find.text('Bạn đã thua!'), findsNothing);
+    expect(find.text('Lỗi 0/3'), findsOneWidget);
   });
 
   testWidgets('goi y hien giai thich va tru luot', (tester) async {
@@ -180,8 +184,8 @@ void main() {
     expect(find.text('Hoàn thành!'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 1500));
     await tester.pump(const Duration(milliseconds: 600));
-    expect(find.text('Hoàn thành Vừa!'), findsOneWidget);
-    expect(find.text('Kỷ lục mới!'), findsOneWidget);
+    expect(find.text('Vừa'), findsOneWidget);
+    expect(find.textContaining('Kỷ lục mới'), findsOneWidget);
     final ps = ProgressStore(p);
     expect(ps.stats('sudoku').won, 1);
     expect(ps.stats('sudoku.medium').won, 1);

@@ -57,6 +57,7 @@ void main() {
       await t.pump(const Duration(milliseconds: 100));
     }
     await t.pump(const Duration(seconds: 6));
+    await t.pump(); // lớp phủ thẻ thắng vẽ ở khung kế tiếp
     expect(find.text('Tắt hết đèn!'), findsOneWidget);
     expect(loadLevelStars(st)[0], 3);
     expect(st.loadState('lights_out.level'), isNull);

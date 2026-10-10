@@ -62,6 +62,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   bool _moved = false;
   int? _points;
   bool _showLose = false;
+  bool _timedOut = false;
   bool _resumed = true;
   bool _paused = false;
   final List<String> _undo = [];
@@ -109,8 +110,12 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
       }
     }
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || !_moved || _game.over || !_resumed || _paused) return;
+      if (!mounted || !_moved || _ended || !_resumed || _paused) return;
       setState(() => _seconds++);
+      if (_seconds >= _limitSecs) {
+        _timeUp();
+        return;
+      }
       if (_seconds % 5 == 0) _save();
     });
   }
@@ -153,6 +158,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     _hintsUsed = 0;
     _points = null;
     _showLose = false;
+    _timedOut = false;
     _moved = false;
     if (_daily) {
       _level = MineLevel.medium;
@@ -187,7 +193,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _resumed = state == AppLifecycleState.resumed;
-    if (!_resumed && !_game.over) _save();
+    if (!_resumed && !_ended) _save();
   }
 
   @override
@@ -201,7 +207,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   bool get _reduce => MediaQuery.disableAnimationsOf(context);
 
   void _togglePause() {
-    if (_game.over) return;
+    if (_ended) return;
     setState(() => _paused = !_paused);
     Sfx.play(_paused ? SfxKind.pause : SfxKind.resume);
     if (_paused) _save();
@@ -209,7 +215,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
 
   String _snapshot() => jsonEncode(_game.toJson());
 
-  bool get _canUndo => _undo.isNotEmpty && !_game.over && !_paused;
+  bool get _canUndo => _undo.isNotEmpty && !_ended && !_paused;
 
   void _restore(String snap) {
     _game = Minesweeper.fromJson(jsonDecode(snap) as Map<String, dynamic>);
@@ -227,7 +233,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   }
 
   void _act(int r, int c, {required bool flag}) {
-    if (_game.over || _paused) return;
+    if (_ended || _paused) return;
     final before = _snapshot();
     final cell = _game.cells[r][c];
     var opened = const <(int, int)>[];
@@ -338,17 +344,41 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     _store.recordLoss(_level.statsId);
   }
 
+  bool get _ended => _game.over || _timedOut;
+
+  /// Thời gian tối đa (giây): càng khó càng ít; tuỳ chỉnh theo cỡ bàn.
+  int get _limitSecs => switch (_level) {
+    MineLevel.easy => 6 * 60,
+    MineLevel.medium => 5 * 60,
+    MineLevel.hard => 4 * 60,
+    MineLevel.custom => Scoring.timeLimit(_multPar.$2),
+  };
+
+  /// (he so diem, thoi gian chuan giay) theo muc kho.
+  (double, int) get _multPar => switch (_level) {
+    MineLevel.easy => (1.0, 90),
+    MineLevel.medium => (2.0, 300),
+    MineLevel.hard => (3.5, 600),
+    MineLevel.custom => (
+      (_game.mines / 10).clamp(0.5, 3.0),
+      max(60, (_game.rows * _game.cols * 0.6).round()),
+    ),
+  };
+
+  void _timeUp() {
+    setState(() {
+      _timedOut = true;
+      _showLose = true;
+    });
+    _recordLoss();
+    _store.clearState(_id);
+    GameFx.error();
+    Sfx.play(SfxKind.lose);
+  }
+
   /// Diem: nhanh thi cao, muc kho nhan he so, moi lan goi y tru diem.
   int _scoreForWin() {
-    final (mult, par) = switch (_level) {
-      MineLevel.easy => (1.0, 90),
-      MineLevel.medium => (2.0, 300),
-      MineLevel.hard => (3.5, 600),
-      MineLevel.custom => (
-        (_game.mines / 10).clamp(0.5, 3.0),
-        max(60, (_game.rows * _game.cols * 0.6).round()),
-      ),
-    };
+    final (mult, par) = _multPar;
     return Scoring.points(
       base: 1000,
       seconds: _seconds,
@@ -383,7 +413,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   }
 
   void _useHint() {
-    if (_game.over || _paused) return;
+    if (_ended || _paused) return;
     void say(String m) => ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(m)));
@@ -414,7 +444,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
 
   /// Hỏi xác nhận trước khi bỏ ván đang chơi (ván đã kết thúc thì không hỏi).
   Future<void> _guard(VoidCallback action) async {
-    if (!_game.over && !await confirmNewGame(context)) return;
+    if (!_ended && !await confirmNewGame(context)) return;
     if (mounted) action();
   }
 
@@ -517,7 +547,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
                               fit: BoxFit.scaleDown,
                               child: GlassStat(
                                 icon: Icons.timer_outlined,
-                                text: '$_seconds s',
+                                text: _clock(max(0, _limitSecs - _seconds)),
                               ),
                             ),
                           ),
@@ -562,7 +592,7 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
                                     : Icons.pause_rounded,
                                 _paused ? 'Tiếp tục' : 'Tạm dừng',
                                 Candy.orange,
-                                _game.over ? null : _togglePause,
+                                _ended ? null : _togglePause,
                                 dim: _paused,
                                 key: const Key('pause-btn'),
                               ),
@@ -654,7 +684,12 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
               child: WinBanner(
                 show: _game.won || _showLose,
                 lose: _showLose && !_game.won,
-                title: _game.won ? 'Bạn đã thắng!' : 'Bạn đã thua!',
+                loseIcon: _timedOut ? Icons.timer_off_rounded : null,
+                title: _game.won
+                    ? 'Bạn đã thắng!'
+                    : _timedOut
+                    ? 'Hết giờ!'
+                    : 'Bạn đã thua!',
                 subtitle: _game.won
                     ? 'Chúc mừng bạn đã hoàn thành màn chơi!'
                     : 'Đừng bỏ cuộc, thử lại nhé!',
@@ -668,7 +703,11 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
                     WinChip(Icons.dangerous_rounded, '${_game.mines} mìn'),
                   WinChip(Icons.timer_outlined, _clock(_seconds)),
                 ],
-                ribbon: _game.won ? 'Hoàn thành xuất sắc!' : 'Mìn đã phát nổ!',
+                ribbon: _game.won
+                    ? 'Hoàn thành xuất sắc!'
+                    : _timedOut
+                    ? 'Hết thời gian!'
+                    : 'Mìn đã phát nổ!',
                 points: _points,
                 onAgain: () => setState(_newGame),
                 onExit: () => context.go(_store.homeRoute),

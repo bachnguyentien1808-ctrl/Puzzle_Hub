@@ -71,6 +71,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   int _secs = 0;
   int _hints = 3;
   bool _won = false;
+  bool _lost = false;
   bool _pencil = false;
   bool _paused = false;
 
@@ -113,8 +114,12 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
       }
     }
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || _won || _paused || _userPaused) return;
+      if (!mounted || _over || _paused || _userPaused) return;
       setState(() => _secs++);
+      if (_secs >= _limit) {
+        _timeUp();
+        return;
+      }
       if (_secs % 10 == 0) _save();
     });
   }
@@ -131,7 +136,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final pause = state != AppLifecycleState.resumed;
-    if (pause && !_paused && !_won) _save();
+    if (pause && !_paused && !_over) _save();
     _paused = pause;
   }
 
@@ -169,7 +174,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   }
 
   void _save() {
-    if (_won) return;
+    if (_over) return;
     _store.saveState(_id, {
       'p': _p.toJson(),
       'lv': _level,
@@ -202,7 +207,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
 
   /// Nút Ván mới: hỏi xác nhận, rồi chọn mức (đề ngày thì chơi lại cùng đề).
   Future<void> _askNewGame() async {
-    if (!_won && !await confirmNewGame(context)) return;
+    if (!_over && !await confirmNewGame(context)) return;
     if (!mounted) return;
     if (_store.isDaily) {
       _newGame(_dailyLevel);
@@ -225,6 +230,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     _secs = 0;
     _hints = lv.hints;
     _won = false;
+    _lost = false;
     _userPaused = false;
     _newBest = false;
     _points = null;
@@ -267,7 +273,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
 
   void _put(int d, {bool fromHint = false}) {
     final s = _sel;
-    if (s == null || _won || _userPaused) return;
+    if (s == null || _over || _userPaused) return;
     final (r, c) = s;
     if (_pencil && d != 0 && !fromHint) {
       if (_v[r][c] != 0) return;
@@ -342,6 +348,18 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     _burst.forward(from: 0);
   }
 
+  bool get _over => _won || _lost;
+
+  /// Thời gian tối đa (giây): càng khó càng ít.
+  int get _limit => const [720, 600, 480][_level];
+
+  void _timeUp() {
+    setState(() => _lost = true);
+    _store.clearState(_id);
+    GameFx.error();
+    Sfx.play(SfxKind.lose);
+  }
+
   void _win() {
     final prev = _store.isDaily ? null : _store.stats(_bestKey).best;
     setState(() {
@@ -368,7 +386,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   }
 
   void _togglePause() {
-    if (_won) return;
+    if (_over) return;
     setState(() => _userPaused = !_userPaused);
     GameFx.tap();
     Sfx.play(_userPaused ? SfxKind.pause : SfxKind.resume);
@@ -376,7 +394,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   }
 
   void _undoMove() {
-    if (_undo.isEmpty || _won || _userPaused) return;
+    if (_undo.isEmpty || _over || _userPaused) return;
     final (r, c, v, m) = _undo.removeLast();
     setState(() {
       _v[r][c] = v;
@@ -390,7 +408,7 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   }
 
   void _hint() {
-    if (_won || _userPaused) return;
+    if (_over || _userPaused) return;
     if (_hints <= 0) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -560,13 +578,23 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
             ),
             Positioned.fill(
               child: WinBanner(
-                show: _won,
-                title: 'Hoàn thành!',
-                subtitle: _newBest
-                    ? 'Kỷ lục mới ${_fmt(_secs)}'
-                    : 'Thời gian ${_fmt(_secs)}',
-                points: _points,
+                show: _won || _lost,
+                lose: _lost,
+                loseIcon: Icons.timer_off_rounded,
+                title: _lost ? 'Hết giờ!' : 'Hoàn thành!',
+                points: _lost ? null : _points,
+                stars: Scoring.stars(
+                  seconds: _secs,
+                  parSeconds: const [420, 720, 1080][_level],
+                  hints: (_lv.hints - _hints).clamp(0, _lv.hints),
+                ),
+                chips: [WinChip(Icons.timer_outlined, _fmt(_secs))],
+                ribbon: _newBest && !_lost
+                    ? 'Kỷ lục mới! ${_fmt(_secs)}'
+                    : null,
+                againLabel: _store.isDaily ? 'Chơi lại' : 'Ván mới',
                 onAgain: () => _newGame(_store.isDaily ? _dailyLevel : _level),
+                onExit: () => context.go(_store.homeRoute),
               ),
             ),
           ],
@@ -598,7 +626,12 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
               text: _fmt(best),
             ),
           ),
-        fit(GlassStat(icon: Icons.timer_outlined, text: _fmt(_secs))),
+        fit(
+          GlassStat(
+            icon: Icons.timer_outlined,
+            text: _fmt(max(0, _limit - _secs)),
+          ),
+        ),
       ],
     );
   }
@@ -790,24 +823,24 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
         _Tool(
           icon: Icons.undo,
           label: 'Hoàn tác',
-          onTap: _undo.isEmpty || _won ? null : _undoMove,
+          onTap: _undo.isEmpty || _over ? null : _undoMove,
         ),
         _Tool(
           icon: Icons.backspace_outlined,
           label: 'Xoá',
-          onTap: _won ? null : () => _put(0),
+          onTap: _over ? null : () => _put(0),
         ),
         _Tool(
           icon: _userPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
           label: _userPaused ? 'Tiếp tục' : 'Tạm dừng',
           colors: Candy.orange,
-          onTap: _won ? null : _togglePause,
+          onTap: _over ? null : _togglePause,
         ),
         _Tool(
           icon: Icons.lightbulb_outline,
           label: 'Gợi ý',
           badge: _hints,
-          onTap: _won ? null : _hint,
+          onTap: _over ? null : _hint,
         ),
         _Tool(
           icon: Icons.refresh_rounded,
@@ -850,8 +883,8 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
                     radius: 10,
                     padding: EdgeInsets.zero,
                     colors: _pencil ? Candy.orange : Candy.blue,
-                    dim: _won,
-                    onPressed: _won ? null : () => _put(d),
+                    dim: _over,
+                    onPressed: _over ? null : () => _put(d),
                     child: Text(
                       '$d',
                       style: TextStyle(
@@ -1354,10 +1387,6 @@ class _LevelDialog extends StatelessWidget {
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    if (i == current) ...[
-                      const SizedBox(width: 8),
-                      const Icon(Icons.check_circle_rounded, size: 20),
-                    ],
                   ],
                 ),
                 Text(

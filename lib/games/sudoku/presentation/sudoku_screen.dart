@@ -17,6 +17,7 @@ import 'package:puzzle_hub/features/common/confirm_new_game.dart';
 import 'package:puzzle_hub/features/common/game_block.dart';
 import 'package:puzzle_hub/features/common/game_overlays.dart';
 import 'package:puzzle_hub/features/common/hub_panels.dart';
+import 'package:puzzle_hub/features/common/start_menu.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_engine.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_game.dart';
 import 'package:puzzle_hub/games/sudoku/presentation/sudoku_board.dart';
@@ -68,7 +69,9 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   Map<int, double> _burstDelay = const {};
   int _toastId = 0;
   List<String> _toastMessages = const [];
-  final _shakeKey = GlobalKey<ShakeState>();
+  // Khoá mới mỗi lần đổi ván: hai bản _gameView cùng hiện trong lúc chuyển
+  // mờ dần, dùng chung một khoá sẽ bị trùng.
+  var _shakeKey = GlobalKey<ShakeState>();
   final _focus = FocusNode(debugLabel: 'sudoku');
 
   bool _showWin = false;
@@ -79,7 +82,6 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   /// Diem thuong cua van nay (hang/cot/khoi xong) va cac don vi da thuong.
   int _bonusPoints = 0;
   final Set<String> _awardedUnits = {};
-  int? _best;
   Timer? _resultTimer;
 
   bool get _daily => _store.isDaily;
@@ -95,6 +97,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     if (saved != null) {
       try {
         final g = SudokuGame.fromJson(saved);
+        if (g.elapsed >= _limitOf(g.level)) g.timedOut = true;
         if (!g.isOver) _game = g;
       } on Object {
         // Trang thai hong -> bat dau lai.
@@ -133,6 +136,11 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     if (g == null || g.isOver || _paused || !_appActive) return;
     g.elapsed++;
     _clock.value = g.elapsed;
+    if (g.elapsed >= _limitOf(g.level)) {
+      g.timedOut = true;
+      _onLose();
+      return;
+    }
     if (g.elapsed % 5 == 0) _save();
   }
 
@@ -148,6 +156,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     void apply() {
       _game = SudokuGame.fresh(gen, level, mistakeLimit: _limitCfg);
       _gen++;
+      _shakeKey = GlobalKey<ShakeState>();
       _resetUi();
     }
 
@@ -193,6 +202,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
         ..restart()
         ..mistakeLimit = _limitCfg;
       _gen++;
+      _shakeKey = GlobalKey<ShakeState>();
       _resetUi();
     });
     _clock.value = 0;
@@ -209,6 +219,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     setState(() {
       _game = null;
       _gen++;
+      _shakeKey = GlobalKey<ShakeState>();
       _resetUi();
     });
   }
@@ -446,7 +457,6 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     if (!_daily) {
       final prev = _store.stats(g.level.statsId).best;
       _newRecord = prev == null || t < prev;
-      _best = _newRecord ? t : prev;
       _store.recordWin(g.level.statsId, score: t, lowerIsBetter: true);
     }
     _store
@@ -489,6 +499,14 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     SudokuLevel.expert => 1500,
   };
 
+  /// Thời gian tối đa của một ván (giây): càng khó càng ít.
+  static int _limitOf(SudokuLevel l) => switch (l) {
+    SudokuLevel.easy => 15 * 60,
+    SudokuLevel.medium => 10 * 60,
+    SudokuLevel.hard => 7 * 60,
+    SudokuLevel.expert => 5 * 60,
+  };
+
   void _onLose() {
     Sfx.play(SfxKind.lose);
     _store.clearState(_id);
@@ -496,16 +514,6 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       _showResult = true;
       _clearHint();
     });
-  }
-
-  void _continueWithoutLimit() {
-    final g = _game;
-    if (g == null) return;
-    setState(() {
-      g.mistakeLimit = false;
-      _showResult = false;
-    });
-    _save();
   }
 
   // ---------- Ban phim may tinh ----------
@@ -702,6 +710,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
                       stats: (l) => _store.stats(l.statsId),
                       onPick: _startNew,
                     ),
+                    const GameDescriptionNote(gameId: 'sudoku'),
                   ],
                 ),
                 Positioned(
@@ -826,28 +835,54 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
         ),
         Positioned.fill(
           child: WinBanner(
-            show: _showWin && !_showResult,
-            title: 'Hoàn thành!',
-            subtitle: formatClock(g.elapsed),
-            points: _points,
+            show: (_showWin && g.isWon) || (g.isLost && _showResult),
+            lose: g.isLost,
+            loseIcon: g.timedOut
+                ? Icons.timer_off_rounded
+                : Icons.heart_broken_rounded,
+            title: g.isLost
+                ? (g.timedOut ? 'Hết giờ!' : 'Bạn đã thua!')
+                : 'Hoàn thành!',
+            subtitle: g.isLost
+                ? 'Thử lại nhé!'
+                : _daily
+                ? 'Thử thách ngày'
+                : g.level.label,
+            points: g.isLost ? null : _points,
+            stars: Scoring.stars(
+              seconds: g.elapsed,
+              parSeconds: _parSeconds(g.level),
+              mistakes: g.mistakes,
+              hints: g.hintsUsed,
+            ),
+            chips: [
+              WinChip(Icons.timer_outlined, formatClock(g.elapsed)),
+              WinChip(
+                Icons.close_rounded,
+                g.mistakeLimit
+                    ? '${g.mistakes}/${SudokuGame.maxMistakes} lỗi'
+                    : '${g.mistakes} lỗi',
+              ),
+            ],
+            ribbon: g.isLost
+                ? (g.timedOut ? 'Hết thời gian!' : 'Hết lượt sai')
+                : !_daily && _newRecord
+                ? 'Kỷ lục mới! ${formatClock(g.elapsed)}'
+                : null,
+            againLabel: g.isLost
+                ? 'Chơi lại'
+                : _daily
+                ? 'Về thử thách'
+                : 'Ván mới',
+            againKey: const ValueKey('sudoku-result-next'),
+            onAgain: g.isLost
+                ? _restartSame
+                : _daily
+                ? () => context.go(_store.homeRoute)
+                : _backToPicker,
+            onExit: () => context.go(_store.homeRoute),
           ),
         ),
-        if (_showResult) ...[
-          Positioned.fill(
-            child: ColoredBox(color: s.scrim.withValues(alpha: 0.35)),
-          ),
-          Positioned.fill(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 380),
-                  child: _resultPanel(g),
-                ),
-              ),
-            ),
-          ),
-        ],
       ],
     );
   }
@@ -872,7 +907,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
               builder: (_, v, _) => GlassStat(
                 key: const ValueKey('sudoku-clock'),
                 icon: Icons.timer_outlined,
-                text: formatClock(v),
+                text: formatClock(max(0, _limitOf(g.level) - v)),
               ),
             ),
           ),
@@ -1014,47 +1049,4 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
       ),
     ),
   );
-
-  Widget _resultPanel(SudokuGame g) {
-    final won = g.isWon;
-    final String title;
-    if (won) {
-      title = _daily
-          ? 'Xong thử thách hôm nay!'
-          : 'Hoàn thành ${g.level.label}!';
-    } else {
-      title = 'Hết lượt sai';
-    }
-    return SudokuResultPanel(
-      won: won,
-      seconds: g.elapsed,
-      mistakes: g.mistakes,
-      mistakeLimit: g.mistakeLimit,
-      hints: g.hintsUsed,
-      best: won && !_daily ? _best : null,
-      newRecord: won && _newRecord,
-      title: title,
-      actions: [
-        if (!won)
-          CandyButton(
-            onPressed: _continueWithoutLimit,
-            child: const Text('Chơi tiếp, bỏ giới hạn'),
-          ),
-        if (!won)
-          CandyButton(
-            onPressed: _restartSame,
-            colors: Candy.orange,
-            child: const Text('Chơi lại đề này'),
-          ),
-        CandyButton(
-          key: const ValueKey('sudoku-result-next'),
-          onPressed: _daily
-              ? () => context.go(_store.homeRoute)
-              : _backToPicker,
-          colors: Candy.green,
-          child: Text(_daily ? 'Về thử thách' : 'Ván mới'),
-        ),
-      ],
-    );
-  }
 }

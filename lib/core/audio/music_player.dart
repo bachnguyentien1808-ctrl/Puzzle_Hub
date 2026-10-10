@@ -13,6 +13,14 @@ import 'package:puzzle_hub/core/audio/sfx_player.dart';
 class MusicEngine {
   MusicEngine._() {
     SfxEngine.enabled.addListener(_apply);
+    // Lưới an toàn: đang tắt tiếng mà vẫn còn trình phát nào thì dọn luôn.
+    if (kIsWeb) {
+      Timer.periodic(const Duration(seconds: 2), (_) {
+        if (!SfxEngine.enabled.value && (_all.isNotEmpty || _playing)) {
+          _silenceNow();
+        }
+      });
+    }
   }
 
   static final MusicEngine instance = MusicEngine._();
@@ -38,6 +46,11 @@ class MusicEngine {
   bool _broken = false;
   Timer? _fade;
   int _gen = 0;
+  int _pending = 0;
+  final Set<AudioPlayer> _zombies = {};
+
+  /// Mọi trình phát nhạc còn sống, kể cả cái mồ côi: tắt tiếng thì dọn hết.
+  final Set<AudioPlayer> _all = {};
   static int _seq = 0;
 
   bool get _shouldPlay =>
@@ -76,6 +89,7 @@ class MusicEngine {
       final track = _current;
       if (p == null || track == null) return;
       final gen = _gen;
+      _pending++;
       unawaited(() async {
         try {
           await p.stop();
@@ -84,7 +98,7 @@ class MusicEngine {
           if (gen != _gen) {
             // Bị tắt tiếng giữa chừng: lệnh phát vừa xong là của trình phát
             // đã huỷ, cắt luôn kẻo nhạc mồ côi vẫn kêu.
-            unawaited(p.dispose().catchError((Object _) {}));
+            unawaited(_kill(p));
             return;
           }
           if (_shouldPlay) {
@@ -94,6 +108,8 @@ class MusicEngine {
           }
         } on Object catch (e) {
           debugPrint('MusicEngine: $e');
+        } finally {
+          _pending--;
         }
       }());
     }
@@ -125,12 +141,14 @@ class MusicEngine {
     final track = _wanted;
     if (_playing || _starting || track == null || !_shouldPlay) return;
     _starting = true;
+    _pending++;
     final gen = _gen;
     try {
       var p = _player;
       if (p == null) {
         p = AudioPlayer(playerId: 'music_bg_${_seq++}');
         _player = p;
+        _all.add(p);
         await p.setReleaseMode(ReleaseMode.loop);
       }
       await p.setVolume(0);
@@ -145,7 +163,7 @@ class MusicEngine {
         if (gen == _gen) {
           _silenceNow();
         } else {
-          unawaited(p.dispose().catchError((Object _) {}));
+          unawaited(_kill(p));
         }
         return;
       }
@@ -157,6 +175,7 @@ class MusicEngine {
       if (e is MissingPluginException) _broken = true;
       debugPrint('MusicEngine: $e');
     } finally {
+      _pending--;
       if (gen == _gen) _starting = false;
     }
     // Bị tắt tiếng giữa chừng rồi bật lại ngay: phát lại từ đầu.
@@ -175,7 +194,10 @@ class MusicEngine {
     _current = null;
     final p = _player;
     _player = null;
-    if (p != null) unawaited(p.dispose().catchError((Object _) {}));
+    if (p != null) {
+      _all.remove(p);
+      unawaited(p.dispose().catchError((Object _) {}));
+    }
   }
 
   /// Tắt hẳn ngay (khi người dùng bấm tắt tiếng): huỷ luôn trình phát để
@@ -188,12 +210,45 @@ class MusicEngine {
     _current = null;
     final p = _player;
     _player = null;
-    if (p == null) return;
+    if (p == null) {
+      for (final o in _all.toList()) {
+        if (!_zombies.contains(o)) unawaited(_kill(o));
+      }
+      return;
+    }
     // Lệnh gửi ngay, không nối chuỗi chờ nhau: trên web một lệnh chờ chậm
     // có thể bị lệnh phát đang dở đè lên. playerId riêng từng lần tạo để
     // dispose trình phát cũ không xoá nhầm trình phát mới.
+    _starting = false;
+    // Dọn cả các trình phát mồ côi (không còn nằm trong _player).
+    for (final o in _all.toList()) {
+      if (o == p || _zombies.contains(o)) continue;
+      unawaited(_kill(o));
+    }
     unawaited(p.pause().catchError((Object _) {}));
-    unawaited(p.dispose().catchError((Object _) {}));
+    if (_pending > 0) {
+      // Có lệnh phát đang nạp dở (web): huỷ ngay thì lệnh đó xong sau vẫn kêu.
+      // Nó tự dừng + huỷ trình phát khi thấy mình đã cũ (xem _kill).
+      _zombies.add(p);
+      Timer(const Duration(seconds: 4), () {
+        if (_zombies.remove(p)) unawaited(_kill(p));
+      });
+    } else {
+      _all.remove(p);
+      unawaited(p.dispose().catchError((Object _) {}));
+    }
+  }
+
+  /// Dừng hẳn rồi huỷ một trình phát đã cũ (lệnh phát của nó vừa xong).
+  Future<void> _kill(AudioPlayer p) async {
+    _zombies.remove(p);
+    _all.remove(p);
+    try {
+      await p.stop();
+    } on Object catch (_) {}
+    try {
+      await p.dispose();
+    } on Object catch (_) {}
   }
 
   void _stop() {

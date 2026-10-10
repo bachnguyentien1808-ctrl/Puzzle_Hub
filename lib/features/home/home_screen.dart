@@ -92,10 +92,6 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
       body: ValueListenableBuilder<int>(
         valueListenable: store.version,
         builder: (context, _, _) {
-          final resume = [
-            for (final g in gameRegistry)
-              if (store.hasState(g.id)) g,
-          ];
           final games = [
             for (final g in gameRegistry)
               if (_filter == GameCategory.all || categoryOf(g.id) == _filter) g,
@@ -145,7 +141,10 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
                         StaggerIn(
                           animation: _slot(0),
                           child: GestureDetector(
-                            onTap: () => context.push('/achievements'),
+                            onTap: () {
+                              Sfx.play(SfxKind.open);
+                              context.push('/achievements');
+                            },
                             child: _ScoreBanner(points: store.totalPoints),
                           ),
                         ),
@@ -154,13 +153,6 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
                           animation: _slot(0),
                           child: _DailyHero(store: store, today: today),
                         ),
-                        if (resume.isNotEmpty) ...[
-                          const SizedBox(height: 20),
-                          StaggerIn(
-                            animation: _slot(1),
-                            child: _ResumeRow(games: resume),
-                          ),
-                        ],
                         const SizedBox(height: 20),
                         StaggerIn(
                           animation: _slot(2),
@@ -235,51 +227,6 @@ class _RoundAction extends StatelessWidget {
           padding: const EdgeInsets.all(10),
           child: Icon(icon, size: 24),
         ),
-      ),
-    );
-  }
-}
-
-/// Nhan muc nho tren nen kem de luon doc duoc.
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text, this.icon);
-
-  final String text;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 5, 16, 5),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Candy.gold, width: 2),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Candy.cream, Candy.creamDeep],
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x44000000),
-            offset: Offset(0, 3),
-            blurRadius: 3,
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: Candy.brown),
-          const SizedBox(width: 6),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Candy.brown,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -416,14 +363,11 @@ class _DailyHero extends StatelessWidget {
               padding: const EdgeInsets.all(18),
               child: Row(
                 children: [
-                  Hero(
-                    tag: 'daily-icon',
-                    child: IconTile(
-                      icon: game?.icon ?? Icons.extension_rounded,
-                      size: 64,
-                      background: Colors.white24,
-                      foreground: Colors.white,
-                    ),
+                  IconTile(
+                    icon: game?.icon ?? Icons.extension_rounded,
+                    size: 64,
+                    background: Colors.white24,
+                    foreground: Colors.white,
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -513,98 +457,6 @@ class _DailyHero extends StatelessWidget {
   }
 }
 
-class _ResumeRow extends StatelessWidget {
-  const _ResumeRow({required this.games});
-
-  final List<GameInfo> games;
-
-  /// Toi da 5 the moi hang, du rong thi xuong dong.
-  static const _maxPerRow = 5;
-  static const _gap = 10.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _SectionLabel('Chơi tiếp', Icons.play_circle_fill_rounded),
-        const SizedBox(height: 10),
-        LayoutBuilder(
-          builder: (context, box) {
-            // The rong deu nhau, khong vuot qua be rong cua noi dung.
-            final fit = ((box.maxWidth + _gap) / (150 + _gap)).floor();
-            final perRow = fit.clamp(1, _maxPerRow);
-            final w = (box.maxWidth - _gap * (perRow - 1)) / perRow;
-            return Wrap(
-              spacing: _gap,
-              runSpacing: _gap,
-              children: [
-                for (final g in games)
-                  SizedBox(
-                    width: w,
-                    height: 66,
-                    child: _Hoverable(
-                      scale: 1.05,
-                      child: Pressable(
-                        sfx: SfxKind.select,
-                        semanticLabel: 'Chơi tiếp ${g.title}',
-                        borderRadius: 18,
-                        onTap: () => context.go('/play/${g.id}'),
-                        child: Ink(
-                          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: Candy.forId(g.id),
-                            ),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: Candy.gold, width: 2),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Candy.deep(Candy.forId(g.id)),
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              GameLogo(id: g.id, size: 40),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    g.title,
-                                    style: t.titleSmall?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.play_arrow_rounded,
-                                color: Colors.white,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
 class _FilterBar extends StatelessWidget {
   const _FilterBar({required this.value, required this.onChanged});
 
@@ -679,10 +531,9 @@ class _FilterBar extends StatelessWidget {
 /// The game o luoi man chinh.
 /// Re chuot vao thi o phong to hon cac o khac (chi o may co chuot).
 class _Hoverable extends StatefulWidget {
-  const _Hoverable({required this.child, this.scale = 1.06});
+  const _Hoverable({required this.child});
 
   final Widget child;
-  final double scale;
 
   @override
   State<_Hoverable> createState() => _HoverableState();
@@ -698,7 +549,7 @@ class _HoverableState extends State<_Hoverable> {
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: AnimatedScale(
-        scale: _hover && !off ? widget.scale : 1,
+        scale: _hover && !off ? 1.06 : 1,
         duration: const Duration(milliseconds: 160),
         curve: Curves.easeOutBack,
         child: widget.child,
@@ -719,7 +570,6 @@ class GameCard extends StatelessWidget {
     final colors = Candy.forId(game.id);
     const onCard = Colors.white;
     final stats = store.stats(game.id);
-    final resume = store.hasState(game.id);
     final best = game.bestLabel(stats.best);
     final line = stats.played == 0 && stats.won == 0
         ? 'Chưa chơi'
@@ -731,11 +581,8 @@ class GameCard extends StatelessWidget {
             child: Pressable(
               sfx: SfxKind.select,
               semanticLabel: '${game.title}. ${game.subtitle}',
-              onTap: () async {
-                // Bấm cả thẻ = chơi lại từ đầu; "Chơi tiếp" mới giữ ván dở.
-                if (resume) await store.clearState(game.id);
-                if (context.mounted) context.go('/play/${game.id}');
-              },
+              // Có ván dở thì vào game sẽ được hỏi Tiếp tục hay Chơi mới.
+              onTap: () => context.go('/play/${game.id}'),
               child: Ink(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -761,62 +608,7 @@ class GameCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        GameLogo(id: game.id, size: 52),
-                        Expanded(
-                          child: !resume
-                              ? const SizedBox.shrink()
-                              : Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: 6,
-                                    right: 26,
-                                  ),
-                                  child: Align(
-                                    alignment: Alignment.centerRight,
-                                    child: FittedBox(
-                                      fit: BoxFit.scaleDown,
-                                      child: GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onTap: () {
-                                          Sfx.play(SfxKind.select);
-                                          context.go('/play/${game.id}');
-                                        },
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white24,
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              const Icon(
-                                                Icons.play_arrow_rounded,
-                                                size: 14,
-                                                color: onCard,
-                                              ),
-                                              Text(
-                                                'Chơi tiếp',
-                                                style: t.labelSmall?.copyWith(
-                                                  color: onCard,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ],
-                    ),
+                    GameLogo(id: game.id, size: 52),
                     const SizedBox(height: 8),
                     Text(
                       game.title,

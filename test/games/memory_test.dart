@@ -207,7 +207,7 @@ void main() {
         size: MemorySize.s3x4,
         set: MemorySet.shapes,
         rng: Random(1),
-      )..seconds = 125;
+      )..seconds = 25;
       await ProgressStore(prefs).saveState('memory', g.toJson());
       final c = ProviderContainer(
         overrides: [sharedPrefsProvider.overrideWithValue(prefs)],
@@ -221,7 +221,7 @@ void main() {
       );
       await t.pump(const Duration(milliseconds: 1500));
       expect(find.byKey(const ValueKey('memory-start')), findsNothing);
-      expect(find.text('02:05'), findsOneWidget);
+      expect(find.text('01:05'), findsOneWidget); // còn lại: 90 - 25 giây
       expect(find.byType(MemoryCardView), findsNWidgets(12));
     });
   });

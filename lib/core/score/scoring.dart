@@ -44,7 +44,27 @@ abstract final class Scoring {
     return max(10, (raw / 10).round() * 10);
   }
 
-  /// "12345" -> "12.345" (dau cham ngan cach hang nghin kieu Viet).
+  /// Thoi gian toi da cho mot van (giay): 1,5 lan thoi gian chuan.
+  static int timeLimit(int parSeconds) => (parSeconds * 1.5).round();
+
+  /// So sao 1..3 cho game khong co luat sao rieng: dua tren toc do va loi/goi y.
+  static int stars({
+    required int seconds,
+    required int parSeconds,
+    int mistakes = 0,
+    int hints = 0,
+  }) {
+    final penalty = min(
+      maxPenalty,
+      mistakes * mistakePenalty + hints * hintPenalty,
+    );
+    final q = speed(seconds, parSeconds) * (1 - penalty);
+    if (q >= 0.6) return 3;
+    if (q >= 0.3) return 2;
+    return 1;
+  }
+
+  /// "12345" ->"12.345" (dau cham ngan cach hang nghin kieu Viet).
   static String format(int n) {
     final s = n.abs().toString();
     final buf = StringBuffer(n < 0 ? '-' : '');
