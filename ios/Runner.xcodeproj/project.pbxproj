@@ -383,6 +383,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = MKG3V4B3M7;
 				PRODUCT_BUNDLE_IDENTIFIER = vn.alodev.puzzleHub;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -564,6 +565,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = MKG3V4B3M7;
 				PRODUCT_BUNDLE_IDENTIFIER = vn.alodev.puzzleHub;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
@@ -586,6 +588,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				DEVELOPMENT_TEAM = MKG3V4B3M7;
 				PRODUCT_BUNDLE_IDENTIFIER = vn.alodev.puzzleHub;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";

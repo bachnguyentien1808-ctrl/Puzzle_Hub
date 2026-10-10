@@ -42,7 +42,7 @@ Chụp màn hình/kiểm: `adb exec-out screencap -p`, `adb shell uiautomator du
 - Điểm số: `lib/core/score/scoring.dart` (nhanh thì cao, chậm giảm dần, sàn 25%, mỗi lỗi -5%, mỗi gợi ý -8%). Mỗi game gọi `GameStore.awardPoints` đúng một lần khi thắng và truyền `points:` vào `WinBanner`. Ô điểm trên AppBar: `lib/core/ui/score_chip.dart`.
 - Hướng dẫn + chú thích từng game: `lib/features/howto/game_tutorials.dart` (test bắt buộc mỗi game trong registry phải có). Tự mở lần đầu qua `GameIntro` trong router; nút "?" trên AppBar.
 - Giao diện: bộ kẹo `lib/core/ui/candy.dart` + bộ kính mờ `lib/core/ui/glass.dart` (đổi màu theo ngày/chiều/đêm). Logo: `lib/core/ui/game_logo.dart` (+ `assets/images/logo*.webp`).
-- Nền: `CandyBackground` (màn ngoài, chuyển động) và `GameBackdrop` (trong game, đứng yên). Buổi trong ngày: `lib/core/theme/day_phase.dart`; Cài đặt Sáng = ban ngày, Tối = ban đêm, Tự động = theo giờ (05:30-16:29 ngày, 16:30-18:59 chiều, còn lại đêm). Ảnh nền `assets/images/bg_*.webp` đều là ảnh người dùng cung cấp, không tự sinh; test tắt chuyển động qua `test/flutter_test_config.dart`.
+- Nền: `CandyBackground` (màn ngoài, chuyển động) và `GameBackdrop` (trong game, đứng yên). Buổi trong ngày: `lib/core/theme/day_phase.dart`; Cài đặt Sáng = ban ngày, Tối = ban đêm, Tự động = theo giờ (05:30-16:29 ngày, 16:30-18:29 chiều, còn lại đêm). Ảnh nền `assets/images/bg_*.webp` đều là ảnh người dùng cung cấp, không tự sinh; test tắt chuyển động qua `test/flutter_test_config.dart`.
 - Chưa có: đa ngôn ngữ, icon app/splash theo logo mới (icon hiện vẫn là mảnh ghép), đồng bộ đám mây, TestFlight/Play.
 - Việc đề xuất tiếp: Word search, Hanoi, thưởng điểm giữa chừng cho Nonogram/Kakuro, ảnh nền chiều/đêm riêng cho từng cảnh.
 
