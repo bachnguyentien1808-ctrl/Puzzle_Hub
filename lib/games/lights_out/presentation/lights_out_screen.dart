@@ -7,9 +7,7 @@ import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
-import 'package:puzzle_hub/core/ui/score_chip.dart';
 import 'package:puzzle_hub/features/common/game_block.dart';
-import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_engine.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_levels.dart';
 import 'package:puzzle_hub/games/lights_out/presentation/lights_out_play.dart';
@@ -81,21 +79,19 @@ class _LightsOutScreenState extends ConsumerState<LightsOutScreen> {
     return CandyBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
-          automaticallyImplyLeading: false,
-        ),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 640),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              padding: PickerFrame.mobile(context)
+                  ? EdgeInsets.zero
+                  : const EdgeInsets.fromLTRB(12, 4, 12, 12),
               // Tat ca trong mot khoi, ten game + mui ten o goc trai.
               child: GameBlock(
                 expand: true,
                 title: 'Tắt đèn',
+                confirmExit: false,
+                fullBleed: true,
                 onBack: () => context.go('/'),
                 child: Column(
                   children: [
@@ -103,7 +99,7 @@ class _LightsOutScreenState extends ConsumerState<LightsOutScreen> {
                       children: [
                         _tabButton(0, Icons.stairs_outlined, 'Màn chơi'),
                         const SizedBox(width: 10),
-                        _tabButton(1, Icons.shuffle, 'Ngẫu nhiên'),
+                        _tabButton(1, Icons.tune_rounded, 'Tuỳ chọn'),
                       ],
                     ),
                     const SizedBox(height: 14),
@@ -226,6 +222,8 @@ class _LightsOutScreenState extends ConsumerState<LightsOutScreen> {
                   ],
                 ],
               ),
+              const SizedBox(height: 18),
+              _BoardPreview(size: _size),
               const SizedBox(height: 16),
               Center(
                 child: GlassStat(
@@ -416,6 +414,121 @@ class _LevelTileState extends State<_LevelTile> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Hình minh hoạ bàn chơi theo kích thước đang chọn: lưới đèn n x n, bấm đèn
+/// giữa thì đảo đèn đó và 4 đèn kề (các đèn sáng vàng trong hình).
+class _BoardPreview extends StatelessWidget {
+  const _BoardPreview({required this.size});
+
+  final int size;
+
+  @override
+  Widget build(BuildContext context) {
+    final mid = size ~/ 2;
+    bool lit(int r, int c) => (r - mid).abs() + (c - mid).abs() <= 1;
+    // Đèn nhỏ dần khi bàn lớn để lưới vẫn rõ nét.
+    final gap = size >= 6 ? 3.0 : 4.0;
+    return Column(
+      key: const ValueKey('lo-preview'),
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 270),
+          child: AspectRatio(
+            aspectRatio: 1,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: Container(
+                key: ValueKey(size),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(26),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xFF1B3F8E), Color(0xFF12296B)],
+                  ),
+                  border: Border.all(color: const Color(0xFF8FD0FF), width: 4),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x66000000),
+                      blurRadius: 12,
+                      offset: Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    for (var r = 0; r < size; r++)
+                      Expanded(
+                        child: Row(
+                          children: [
+                            for (var c = 0; c < size; c++)
+                              Expanded(
+                                child: Padding(
+                                  padding: EdgeInsets.all(gap),
+                                  child: SizedBox.expand(
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: lit(r, c)
+                                            ? const RadialGradient(
+                                                center: Alignment(-0.3, -0.3),
+                                                colors: [
+                                                  Color(0xFFFFF3A8),
+                                                  Color(0xFFFFC21F),
+                                                ],
+                                              )
+                                            : null,
+                                        color: lit(r, c)
+                                            ? null
+                                            : const Color(0xFF263B72),
+                                        border: Border.all(
+                                          color: lit(r, c)
+                                              ? Colors.white
+                                              : const Color(0xFF5E7FC8),
+                                          width: lit(r, c) ? 2.5 : 2,
+                                        ),
+                                        boxShadow: lit(r, c)
+                                            ? const [
+                                                BoxShadow(
+                                                  color: Color(0xAAFFD84A),
+                                                  blurRadius: 10,
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Bàn $size x $size · ${size * size} đèn',
+          style: const TextStyle(
+            color: Color(0xFF1B3F8E),
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
+          ),
+        ),
+        const SizedBox(height: 2),
+        const Text(
+          'Bấm một đèn: đảo đèn đó và 4 đèn kề bên',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Color(0xFF3B5BA8), fontSize: 13),
+        ),
+      ],
     );
   }
 }

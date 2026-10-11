@@ -7,9 +7,9 @@ import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/game_logo.dart';
-import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/features/common/card_close_button.dart';
 import 'package:puzzle_hub/features/common/shell_widgets.dart';
+import 'package:puzzle_hub/features/common/sky_page.dart';
 import 'package:puzzle_hub/games/game_registry.dart';
 
 /// Dong ho cho man ngay; test ghi de de co ngay co dinh.
@@ -93,108 +93,177 @@ class _DailyScreenState extends ConsumerState<DailyScreen>
   Widget build(BuildContext context) {
     final gameId = dailyGameFor(_today);
     final game = gameById(gameId);
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            ValueListenableBuilder<int>(
-              valueListenable: _store.version,
-              builder: (context, _, _) {
-                final done = _store.dailyDone();
-                final status = dailyStatus(_store, _key, gameId);
-                return Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 820),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      // Tất cả trong một khối kính, nút × đóng ở góc phải.
-                      child: GlassPanel(
-                        radius: 30,
-                        padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              children: [
-                                const SizedBox(width: 4),
-                                const Expanded(
-                                  child: Text(
-                                    'Thử thách mỗi ngày',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 26,
-                                      fontWeight: FontWeight.w900,
-                                      shadows: [
-                                        Shadow(
-                                          color: Color(0x88000000),
-                                          blurRadius: 3,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                GlassCloseButton(
-                                  onTap: () => context.canPop()
-                                      ? context.pop()
-                                      : context.go('/'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            Expanded(
-                              child: ListView(
-                                children: [
-                                  _TodayCard(
-                                    today: _today,
-                                    game: game,
-                                    gameId: gameId,
-                                    status: status,
-                                    score: done[_key],
-                                  ),
-                                  const SizedBox(height: 14),
-                                  _StreakRow(
-                                    current: _store.currentStreak(_today),
-                                    best: _store.bestStreak(),
-                                    flame: _flame,
-                                  ),
-                                  const SizedBox(height: 14),
-                                  _WeekStrip(today: _today, done: done),
-                                  const SizedBox(height: 14),
-                                  _MonthCalendar(
-                                    month: _month,
-                                    today: _today,
-                                    done: done,
-                                    onMonth: (m) => setState(() => _month = m),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-            Positioned.fill(child: Confetti(show: _celebrate)),
-          ],
+    return Stack(
+      children: [
+        ValueListenableBuilder<int>(
+          valueListenable: _store.version,
+          builder: (context, _, _) {
+            final done = _store.dailyDone();
+            final status = dailyStatus(_store, _key, gameId);
+            final best = _store.bestStreak();
+            return SkyPage(
+              warm: true,
+              title: 'Thử thách',
+              icon: Icons.local_fire_department_rounded,
+              subtitle: 'Mỗi ngày một câu đố, giữ chuỗi để nhận huy hiệu',
+              children: [
+                _TodayCard(
+                  today: _today,
+                  game: game,
+                  gameId: gameId,
+                  status: status,
+                  score: done[_key],
+                ),
+                const SizedBox(height: 14),
+                _StreakRow(
+                  current: _store.currentStreak(_today),
+                  best: best,
+                  flame: _flame,
+                ),
+                const SizedBox(height: 18),
+                _Rewards(best: best, total: done.length),
+                const SizedBox(height: 18),
+                const SkySection(
+                  'Tuần này',
+                  Icons.view_week_rounded,
+                  color: Color(0xFFD35400),
+                ),
+                _WeekStrip(today: _today, done: done),
+                const SizedBox(height: 18),
+                const SkySection(
+                  'Lịch thử thách',
+                  Icons.calendar_month_rounded,
+                  color: Color(0xFF3FA535),
+                ),
+                _MonthCalendar(
+                  month: _month,
+                  today: _today,
+                  done: done,
+                  onMonth: (m) => setState(() => _month = m),
+                ),
+              ],
+            );
+          },
         ),
-      ),
+        Positioned.fill(child: Confetti(show: _celebrate)),
+      ],
     );
   }
 }
 
-const _ink = Candy.brown;
+/// Phần thưởng huy hiệu: mốc chuỗi ngày liên tiếp và số thử thách đã xong.
+class _Rewards extends StatelessWidget {
+  const _Rewards({required this.best, required this.total});
+
+  final int best;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final badges = <SkyBadgeTile>[
+      SkyBadgeTile(
+        icon: Icons.local_fire_department_rounded,
+        title: 'Giữ lửa',
+        desc: 'Chuỗi 3 ngày liền',
+        value: best,
+        target: 3,
+        tier: SkyTier.bronze,
+      ),
+      SkyBadgeTile(
+        icon: Icons.calendar_month_rounded,
+        title: 'Tuần lễ vàng',
+        desc: 'Chuỗi 7 ngày liền',
+        value: best,
+        target: 7,
+        tier: SkyTier.silver,
+      ),
+      SkyBadgeTile(
+        icon: Icons.whatshot_rounded,
+        title: 'Nửa tháng',
+        desc: 'Chuỗi 14 ngày liền',
+        value: best,
+        target: 14,
+      ),
+      SkyBadgeTile(
+        icon: Icons.workspace_premium_rounded,
+        title: 'Cả tháng',
+        desc: 'Chuỗi 30 ngày liền',
+        value: best,
+        target: 30,
+        tier: SkyTier.diamond,
+      ),
+      SkyBadgeTile(
+        icon: Icons.flag_rounded,
+        title: 'Lần đầu',
+        desc: 'Xong thử thách đầu tiên',
+        value: total,
+        target: 1,
+        tier: SkyTier.bronze,
+      ),
+      SkyBadgeTile(
+        icon: Icons.task_alt_rounded,
+        title: 'Chăm chỉ',
+        desc: 'Xong 10 thử thách',
+        value: total,
+        target: 10,
+        tier: SkyTier.silver,
+      ),
+      SkyBadgeTile(
+        icon: Icons.military_tech_rounded,
+        title: 'Kiên trì',
+        desc: 'Xong 30 thử thách',
+        value: total,
+        target: 30,
+      ),
+      SkyBadgeTile(
+        icon: Icons.diamond_rounded,
+        title: 'Huyền thoại',
+        desc: 'Xong 100 thử thách',
+        value: total,
+        target: 100,
+        tier: SkyTier.diamond,
+      ),
+    ];
+    final got = badges.where((b) => b.unlocked).length;
+    SkyBadgeTile? next;
+    for (final b in badges) {
+      if (!b.unlocked &&
+          (next == null || b.target - b.value < next.target - next.value)) {
+        next = b;
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SkySection(
+          'Phần thưởng · $got/${badges.length}',
+          Icons.card_giftcard_rounded,
+          color: const Color(0xFFE59A12),
+        ),
+        if (next != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              'Sắp nhận: huy hiệu "${next.title}" · còn '
+              '${next.target - next.value} nữa',
+              style: const TextStyle(
+                color: Color(0xFF9A6B3C),
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        SkyBadgeGrid(badges: badges),
+      ],
+    );
+  }
+}
+
+const _ink = Color(0xFF7A4A21);
 const _inkSoft = Color(0xFF9A6B3C);
 const _shadow = [Shadow(color: Color(0x88000000), blurRadius: 3)];
 
-/// Tam kem hai lop (khung CandyFrame + long kem sang) de chu nau doc duoc
-/// tren ca nen sang lan toi.
+/// Thẻ trắng viền xanh cho lịch và dải tuần.
 class _CreamPanel extends StatelessWidget {
   const _CreamPanel({required this.child, this.padding = 12});
 
@@ -202,18 +271,8 @@ class _CreamPanel extends StatelessWidget {
   final double padding;
 
   @override
-  Widget build(BuildContext context) {
-    return CandyFrame(
-      padding: 5,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: const Color(0xFFFFF6E3),
-        ),
-        child: Padding(padding: EdgeInsets.all(padding), child: child),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      SkyCard(padding: EdgeInsets.all(padding), child: child);
 }
 
 class _TodayCard extends StatelessWidget {
@@ -578,7 +637,7 @@ class _DayDot extends StatelessWidget {
         color: done
             ? null
             : today
-            ? Candy.creamDeep
+            ? const Color(0xFFF2DFC0)
             : Colors.transparent,
         border: Border.all(
           color: today ? Candy.gold : Colors.transparent,

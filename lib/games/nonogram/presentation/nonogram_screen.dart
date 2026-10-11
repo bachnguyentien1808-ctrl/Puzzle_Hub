@@ -6,9 +6,8 @@ import 'package:puzzle_hub/core/storage/game_store.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
-import 'package:puzzle_hub/core/ui/score_chip.dart';
 import 'package:puzzle_hub/features/common/game_block.dart';
-import 'package:puzzle_hub/features/common/hub_panels.dart';
+import 'package:puzzle_hub/features/howto/tutorial_gate.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_engine.dart';
 import 'package:puzzle_hub/games/nonogram/domain/nonogram_progress.dart';
 import 'package:puzzle_hub/games/nonogram/presentation/nonogram_play.dart';
@@ -46,7 +45,25 @@ class _NonogramScreenState extends ConsumerState<NonogramScreen> {
 
   void _persist() => _store.saveState(_id, _progress.toJson());
 
+  /// Số ải hiển thị: gói nhỏ trước (5x5, 8x8, 10x10, 12x12). Chơi ải nào cũng
+  /// được, không cần giải theo thứ tự.
+  static final List<int> _order = [
+    for (final size in nonogramPackSizes) ...puzzleIndicesOfSize(size),
+  ];
+
+  /// Số ải (từ 1) của tranh [i].
+  int _levelOf(int i) => _order.indexOf(i) + 1;
+
+  /// Ải gợi ý chơi tiếp (viền vàng): ải đầu tiên chưa giải.
+  int? get _nextLevel {
+    for (final i in _order) {
+      if (!_progress.best.containsKey(i)) return i;
+    }
+    return null;
+  }
+
   void _open(int i) {
+    TutorialGate.fire(_id);
     final puzzle = NonogramPuzzle(nonogramPuzzles[i].rows);
     final save = _progress.saves[i];
     final game = NonogramGame(puzzle, grid: save?.grid);
@@ -120,21 +137,19 @@ class _NonogramScreenState extends ConsumerState<NonogramScreen> {
     return CandyBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
-          automaticallyImplyLeading: false,
-        ),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 940),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              padding: PickerFrame.mobile(context)
+                  ? EdgeInsets.zero
+                  : const EdgeInsets.fromLTRB(12, 4, 12, 12),
               // Tat ca nam chung trong mot khoi, ten game + mui ten o goc trai.
               child: GameBlock(
                 expand: true,
                 title: 'Nonogram',
+                confirmExit: false,
+                fullBleed: true,
                 onBack: () => context.go(_store.homeRoute),
                 child: ListView(
                   padding: EdgeInsets.zero,
@@ -217,6 +232,8 @@ class _NonogramScreenState extends ConsumerState<NonogramScreen> {
     final best = _progress.best[i];
     final save = _progress.saves[i];
     final colors = Candy.palettes[i % Candy.palettes.length];
+    final isNext = _nextLevel == i;
+    final level = _levelOf(i);
     return SizedBox(
       width: width,
       child: _Press(
@@ -226,8 +243,10 @@ class _NonogramScreenState extends ConsumerState<NonogramScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: GlassStyle.of(context).outerBorder,
-              width: 2,
+              color: isNext
+                  ? const Color(0xFFFFE066)
+                  : GlassStyle.of(context).outerBorder,
+              width: isNext ? 3.5 : 2,
             ),
             gradient: LinearGradient(
               begin: Alignment.topCenter,
@@ -322,10 +341,10 @@ class _NonogramScreenState extends ConsumerState<NonogramScreen> {
                   ),
                   Text(
                     best != null
-                        ? formatSeconds(best.seconds)
+                        ? 'Ải $level · ${formatSeconds(best.seconds)}'
                         : save != null
-                        ? 'Đang chơi'
-                        : ' ',
+                        ? 'Ải $level · Đang chơi'
+                        : 'Ải $level',
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,

@@ -193,9 +193,17 @@ void main() {
       await t.pumpAndSettle();
       expect(find.byKey(const ValueKey('memory-size-3x4')), findsOneWidget);
       expect(find.byKey(const ValueKey('memory-set-shapes')), findsOneWidget);
-      await t.tap(find.byKey(const ValueKey('memory-size-3x4')));
-      await t.tap(find.byKey(const ValueKey('memory-set-letters')));
-      await t.tap(find.byKey(const ValueKey('memory-start')));
+      // Trang Chọn kiểu chơi có thể cần cuộn tới từng nút ở màn thấp.
+      for (final k in [
+        'memory-size-3x4',
+        'memory-set-letters',
+        'memory-start',
+      ]) {
+        await t.ensureVisible(find.byKey(ValueKey(k)));
+        await t.pumpAndSettle();
+        await t.tap(find.byKey(ValueKey(k)));
+        await t.pump();
+      }
       await t.pumpAndSettle();
       expect(find.byType(MemoryCardView), findsNWidgets(12));
     });

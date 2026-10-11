@@ -19,17 +19,39 @@ class ScoreChip extends StatelessWidget {
     } on Object {
       return const SizedBox.shrink();
     }
+    // Trong game: ô điểm là điểm riêng của game đó; ngoài game là tổng điểm.
+    final id = _currentGameId(context);
     return ValueListenableBuilder<int>(
       valueListenable: store.version,
-      builder: (_, _, _) => _ScoreView(points: store.totalPoints),
+      builder: (_, _, _) => _ScoreView(
+        key: ValueKey(id),
+        points: id == null ? store.totalPoints : store.gamePoints(id),
+        gameId: id,
+      ),
     );
   }
 }
 
+/// Game đang mở (đường dẫn `/play/id`), null nếu không ở trong game.
+String? _currentGameId(BuildContext context) {
+  try {
+    final seg = GoRouter.of(context)
+        .routeInformationProvider
+        .value
+        .uri
+        .pathSegments;
+    if (seg.length >= 2 && seg.first == 'play') return seg[1];
+  } on Object {
+    return null;
+  }
+  return null;
+}
+
 class _ScoreView extends StatefulWidget {
-  const _ScoreView({required this.points});
+  const _ScoreView({required this.points, this.gameId, super.key});
 
   final int points;
+  final String? gameId;
 
   @override
   State<_ScoreView> createState() => _ScoreViewState();
@@ -68,9 +90,11 @@ class _ScoreViewState extends State<_ScoreView>
   Widget build(BuildContext context) {
     final reduce = MediaQuery.disableAnimationsOf(context);
     return Tooltip(
-      message: 'Tổng điểm',
+      message: widget.gameId == null ? 'Tổng điểm' : 'Điểm của game này',
       child: Semantics(
-        label: 'Tổng điểm ${widget.points}',
+        label:
+            '${widget.gameId == null ? 'Tổng điểm' : 'Điểm game này'} '
+            '${widget.points}',
         excludeSemantics: true,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -89,7 +113,11 @@ class _ScoreViewState extends State<_ScoreView>
                     final g = GlassStyle.of(context);
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () => GoRouter.of(context).push('/achievements'),
+                      onTap: () => GoRouter.of(context).push(
+                        widget.gameId == null
+                            ? '/achievements'
+                            : '/achievements?game=${widget.gameId}',
+                      ),
                       child: Container(
                         key: const Key('score-chip'),
                         padding: const EdgeInsets.fromLTRB(5, 4, 12, 4),

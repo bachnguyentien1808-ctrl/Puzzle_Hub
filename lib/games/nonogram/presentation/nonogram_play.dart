@@ -62,7 +62,7 @@ class _NonogramPlayState extends State<NonogramPlay>
   Timer? _timer;
   bool _paused = false;
 
-  final NonogramTool _tool = NonogramTool.fill;
+  NonogramTool _tool = NonogramTool.fill;
   final bool _check = false;
   bool _banner = false;
   bool _won = false;
@@ -439,6 +439,30 @@ class _NonogramPlayState extends State<NonogramPlay>
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceEvenly,
                                 children: [
+                                  // Chế độ thao tác: điền ô hoặc đánh dấu X.
+                                  GameActionButton(
+                                    buttonKey: const ValueKey('nonogram-fill'),
+                                    icon: Icons.edit_rounded,
+                                    tooltip: 'Điền ô',
+                                    dim: _tool != NonogramTool.fill,
+                                    onPressed: _over
+                                        ? null
+                                        : () => setState(
+                                            () => _tool = NonogramTool.fill,
+                                          ),
+                                  ),
+                                  GameActionButton(
+                                    buttonKey: const ValueKey('nonogram-mark'),
+                                    icon: Icons.close_rounded,
+                                    tooltip: 'Đánh dấu X (ô trống)',
+                                    colors: Candy.red,
+                                    dim: _tool != NonogramTool.mark,
+                                    onPressed: _over
+                                        ? null
+                                        : () => setState(
+                                            () => _tool = NonogramTool.mark,
+                                          ),
+                                  ),
                                   GameActionButton(
                                     icon: Icons.undo,
                                     tooltip: 'Hoàn tác',

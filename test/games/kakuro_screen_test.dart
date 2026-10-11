@@ -37,7 +37,8 @@ void main() {
   testWidgets('ván mới: điền số thì lưu ván, có hoàn tác', (tester) async {
     final prefs = await _pump(tester, {});
     await tester.pumpAndSettle();
-    await tester.tapAt(const Offset(5, 5)); // đóng bảng chọn của ván mới
+    // Ván mới mở trang chọn mức: chọn Vừa để vào chơi.
+    await tester.tap(find.byKey(const ValueKey('kakuro-level-1')));
     await tester.pumpAndSettle();
     expect(find.text('Kakuro'), findsOneWidget);
     expect(prefs.getString('state.kakuro'), isNotNull);
@@ -55,7 +56,8 @@ void main() {
   testWidgets('ván mới: hỏi xác nhận rồi chọn mức Khó', (tester) async {
     final prefs = await _pump(tester, {});
     await tester.pumpAndSettle();
-    await tester.tapAt(const Offset(5, 5)); // đóng bảng chọn của ván mới
+    // Ván mới mở trang chọn mức: chọn Vừa để vào chơi.
+    await tester.tap(find.byKey(const ValueKey('kakuro-level-1')));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Ván mới'));
     await tester.pumpAndSettle();

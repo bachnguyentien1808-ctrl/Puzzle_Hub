@@ -4,13 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/audio/sfx_player.dart';
 import 'package:puzzle_hub/core/settings/app_settings.dart';
 import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
-import 'package:puzzle_hub/features/settings/settings_screen.dart';
-import 'package:puzzle_hub/features/stats/stats_screen.dart';
-import 'package:puzzle_hub/games/game_registry.dart';
 
 const _ink = Color(0xFF1B2A4A);
 const _accent = Color(0xFF3D5AFE);
-const _amber = Color(0xFFF59E0B);
 
 /// Hien mot bang tha xuong goc tren ben phai (duoi AppBar), nen mo dan.
 Future<void> _showDropdown(
@@ -106,50 +102,10 @@ String? _currentGameId(BuildContext context) {
   return null;
 }
 
-/// Mo man Thong ke / Cai dat. Trong game thi hien de len man choi (van thay
-/// game phia sau); o trang chu thi sang man rieng.
-void _openPage(
-  BuildContext context, {
-  required bool overlay,
-  required String route,
-  required Widget page,
-}) {
-  if (!overlay) {
-    context.push(route);
-    return;
-  }
-  showGeneralDialog<void>(
-    context: context,
-    barrierDismissible: true,
-    barrierLabel: 'Đóng',
-    barrierColor: const Color(0x66000000),
-    transitionDuration: const Duration(milliseconds: 180),
-    pageBuilder: (_, _, _) => page,
-    transitionBuilder: (ctx, a, _, child) => MediaQuery.disableAnimationsOf(ctx)
-        ? child
-        : FadeTransition(opacity: a, child: child),
-  );
-}
-
-class _Title extends StatelessWidget {
-  const _Title(this.icon, this.text);
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: _amber, size: 28),
-        const SizedBox(width: 10),
-        Text(
-          text,
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
-        ),
-      ],
-    );
-  }
+/// Mở màn Thống kê / Cài đặt thành một trang riêng (cả ở trang chủ lẫn đang
+/// trong game): không đè lên bàn chơi, quay lại thì về đúng chỗ cũ.
+void _openPage(BuildContext context, {required String route}) {
+  context.push(route);
 }
 
 // ---------------------------------------------------------------------------
@@ -293,28 +249,25 @@ Future<void> showHubMenu(
               label: 'Thống kê',
               onTap: () {
                 Navigator.of(ctx).pop();
+                // Trong game: chỉ thống kê game đang chơi.
+                final id = _currentGameId(context);
                 _openPage(
                   context,
-                  overlay: showHome,
-                  route: '/stats',
-                  page: const StatsScreen(),
+                  route: id == null ? '/stats' : '/stats?game=$id',
                 );
               },
             ),
-            _MenuRow(
-              icon: Icons.tune_rounded,
-              color: _accent,
-              label: 'Cài đặt',
-              onTap: () {
-                Navigator.of(ctx).pop();
-                _openPage(
-                  context,
-                  overlay: showHome,
-                  route: '/settings',
-                  page: const SettingsScreen(),
-                );
-              },
-            ),
+            // Cài đặt chỉ có ở trang chủ, không có trong game.
+            if (_currentGameId(context) == null)
+              _MenuRow(
+                icon: Icons.tune_rounded,
+                color: _accent,
+                label: 'Cài đặt',
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _openPage(context, route: '/settings');
+                },
+              ),
             _MenuRow(
               icon: Icons.help_outline_rounded,
               color: const Color(0xFFE91E8C),
@@ -327,7 +280,7 @@ Future<void> showHubMenu(
                 if (id != null) {
                   showTutorial(context, id);
                 } else {
-                  _showGuidePicker(context, top: top);
+                  context.push('/guide');
                 }
               },
             ),
@@ -335,43 +288,6 @@ Future<void> showHubMenu(
         ),
       );
     },
-  );
-}
-
-Future<void> _showGuidePicker(BuildContext context, {required double top}) {
-  return _showDropdown(
-    context,
-    top: top,
-    width: 280,
-    builder: (ctx) => ConstrainedBox(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(ctx).height * .72,
-      ),
-      child: _Card(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: _Title(Icons.help_outline_rounded, 'Hướng dẫn'),
-              ),
-              const SizedBox(height: 6),
-              for (final g in gameRegistry)
-                _MenuRow(
-                  icon: g.icon,
-                  color: _accent,
-                  label: g.title,
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    if (context.mounted) showTutorial(context, g.id);
-                  },
-                ),
-            ],
-          ),
-        ),
-      ),
-    ),
   );
 }
 

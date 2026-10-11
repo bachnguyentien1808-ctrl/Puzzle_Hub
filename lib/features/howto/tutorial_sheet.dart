@@ -3,10 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/core/ui/candy.dart';
-import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/features/common/start_menu.dart';
 import 'package:puzzle_hub/features/howto/game_tutorials.dart';
+import 'package:puzzle_hub/features/howto/tutorial_gate.dart';
 import 'package:puzzle_hub/games/game_registry.dart';
 
 GameInfo? _info(String id) {
@@ -46,11 +45,20 @@ class HelpAction extends StatelessWidget {
   }
 }
 
-/// Boc man choi: lan dau vao game se tu mo huong dan (chi mot lan).
+/// Boc man choi: chi khi bam "Bat dau choi" (chua co van do) moi tu mo huong
+/// dan, sau khi chon xong muc; Tiep tuc / Choi lai thi khong hien nua.
 class GameIntro extends ConsumerStatefulWidget {
-  const GameIntro({required this.gameId, required this.child, super.key});
+  const GameIntro({
+    required this.gameId,
+    required this.child,
+    this.tutorialEveryTime = true,
+    super.key,
+  });
 
   final String gameId;
+
+  /// false: chi mo huong dan lan dau vao game (dung trong test).
+  final bool tutorialEveryTime;
   final Widget child;
 
   @override
@@ -58,39 +66,62 @@ class GameIntro extends ConsumerStatefulWidget {
 }
 
 class _GameIntroState extends ConsumerState<GameIntro> {
-  /// Có ván đang chơi dở: hỏi Tiếp tục hay Chơi mới trước khi vào game.
+  /// Vào game luôn qua một màn đầu: có ván dở thì hỏi "Bạn có muốn tiếp tục
+  /// chơi không?" (Có = chơi tiếp, Không = ván mới); chưa có ván dở thì chỉ có
+  /// nút "Bắt đầu chơi".
   late bool _asking;
+  late final bool _hasSaved = ref
+      .read(progressStoreProvider)
+      .hasState(widget.gameId);
+
+  /// Game chơi theo ải: tiến độ tự lưu theo từng ải nên không hỏi Tiếp tục /
+  /// Chơi mới; vào game luôn qua màn "Bắt đầu chơi" (có mô tả game).
+  static const _levelGames = {'nonogram', 'lights_out'};
 
   @override
   void initState() {
     super.initState();
-    final store = ref.read(progressStoreProvider);
-    _asking = store.hasState(widget.gameId);
-    if (!_asking) _maybeTutorial();
+    _asking = true;
+    // Vừa mở game là đẩy game lên đầu trang chủ.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(progressStoreProvider).markOpened(widget.gameId);
+    });
   }
 
-  /// Lần đầu vào game tự mở hướng dẫn (chỉ một lần).
+  /// Mỗi lần bắt đầu ván mới tự mở hướng dẫn chơi (chơi tiếp thì không).
   void _maybeTutorial() {
     final store = ref.read(progressStoreProvider);
-    if (store.tutorialSeen(widget.gameId)) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!widget.tutorialEveryTime && store.tutorialSeen(widget.gameId)) return;
+    // Chờ người chơi chọn xong mức/kích thước rồi mới hiện (game gọi
+    // TutorialGate.fire khi bàn chơi hiện ra).
+    TutorialGate.arm(widget.gameId, () {
       if (!mounted) return;
       store.markTutorialSeen(widget.gameId);
       showTutorial(context, widget.gameId);
     });
   }
 
-  void _resume() {
+  @override
+  void dispose() {
+    TutorialGate.disarm(widget.gameId);
+    super.dispose();
+  }
+
+  /// Chơi tiếp ván dở: vào thẳng game, không hiện hướng dẫn.
+  void _resume() => setState(() => _asking = false);
+
+  /// Bắt đầu chơi (chưa có ván dở): hiện hướng dẫn sau khi chọn mức.
+  void _start() {
     setState(() => _asking = false);
     _maybeTutorial();
   }
 
   Future<void> _startNew() async {
     // Chơi mới: bỏ ván dở trước khi game nạp, game sẽ mở màn chọn mức.
+    // Chơi lại (chọn Không): không hiện hướng dẫn nữa, chỉ lần đầu "Bắt đầu chơi".
     await ref.read(progressStoreProvider).clearState(widget.gameId);
     if (!mounted) return;
     setState(() => _asking = false);
-    _maybeTutorial();
   }
 
   @override
@@ -98,22 +129,23 @@ class _GameIntroState extends ConsumerState<GameIntro> {
     if (_asking) {
       return GameBackdrop(
         gameId: widget.gameId,
-        child: Scaffold(
-          backgroundColor: Colors.transparent,
-          appBar: AppBar(
+        child: KeepBackdropStill(
+          child: Scaffold(
             backgroundColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            automaticallyImplyLeading: false,
-            actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
-          ),
-          body: StartChoicePanel(
-            gameId: widget.gameId,
-            keyPrefix: 'start',
-            resumeSubtitle: 'Vào lại ván đang chơi dở',
-            newSubtitle: 'Bỏ ván dở và bắt đầu ván mới',
-            onResume: _resume,
-            onNew: _startNew,
-            onClose: () => context.go('/'),
+            body: _hasSaved && !_levelGames.contains(widget.gameId)
+                ? StartChoicePanel(
+                    gameId: widget.gameId,
+                    keyPrefix: 'start',
+                    onYes: _resume,
+                    onNo: _startNew,
+                    onClose: () => context.go('/'),
+                  )
+                : StartPlayPanel(
+                    gameId: widget.gameId,
+                    keyPrefix: 'start',
+                    onStart: _start,
+                    onClose: () => context.go('/'),
+                  ),
           ),
         ),
       );
@@ -234,56 +266,47 @@ class _TutorialSheetState extends State<TutorialSheet> {
                 ),
                 Padding(
                   padding: const EdgeInsets.all(14),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (_i > 0) ...[
-                        Flexible(
-                          child: CandyButton(
-                            key: const Key('tutorial-back'),
-                            onPressed: _back,
-                            colors: Candy.orange,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                            child: const FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.chevron_left_rounded),
-                                  SizedBox(width: 2),
-                                  Text(
-                                    'Quay lại',
-                                    style: TextStyle(fontSize: 16),
-                                  ),
-                                ],
+                  // Hai nút cùng bề rộng (Expanded), cùng có mũi tên.
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: _i > 0 ? 420 : 210),
+                    child: Row(
+                      children: [
+                        if (_i > 0) ...[
+                          Expanded(
+                            child: CandyButton(
+                              key: const Key('tutorial-back'),
+                              onPressed: _back,
+                              colors: Candy.orange,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                              child: const _NavLabel(
+                                text: 'Quay lại',
+                                icon: Icons.arrow_back_rounded,
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      Flexible(
-                        child: CandyButton(
-                          key: const Key('tutorial-next'),
-                          onPressed: _next,
-                          colors: _last ? Candy.green : Candy.blue,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: _i > 0 ? 18 : 40,
-                            vertical: 12,
-                          ),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              _last ? 'Bắt đầu chơi' : 'Tiếp',
-                              style: const TextStyle(fontSize: 16),
+                          const SizedBox(width: 12),
+                        ],
+                        Expanded(
+                          child: CandyButton(
+                            key: const Key('tutorial-next'),
+                            onPressed: _next,
+                            colors: _last ? Candy.green : Candy.blue,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            child: _NavLabel(
+                              text: _last ? 'Bắt đầu chơi' : 'Tiếp',
+                              icon: Icons.arrow_forward_rounded,
+                              iconAfter: true,
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -431,6 +454,34 @@ class _LegendPage extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// Chữ + mũi tên trong nút Quay lại / Tiếp (co lại nếu hẹp).
+class _NavLabel extends StatelessWidget {
+  const _NavLabel({
+    required this.text,
+    required this.icon,
+    this.iconAfter = false,
+  });
+
+  final String text;
+  final IconData icon;
+  final bool iconAfter;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = Text(text, style: const TextStyle(fontSize: 16));
+    final arrow = Icon(icon, size: 20);
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: iconAfter
+            ? [label, const SizedBox(width: 6), arrow]
+            : [arrow, const SizedBox(width: 6), label],
       ),
     );
   }

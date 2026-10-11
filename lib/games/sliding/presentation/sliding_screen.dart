@@ -17,6 +17,7 @@ import 'package:puzzle_hub/features/common/confirm_new_game.dart';
 import 'package:puzzle_hub/features/common/game_block.dart';
 import 'package:puzzle_hub/features/common/game_overlays.dart';
 import 'package:puzzle_hub/features/common/hub_panels.dart';
+import 'package:puzzle_hub/features/howto/tutorial_gate.dart';
 import 'package:puzzle_hub/games/sliding/domain/sliding_engine.dart';
 import 'package:puzzle_hub/games/sliding/presentation/sliding_art.dart';
 
@@ -461,153 +462,8 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
     });
   }
 
-  Future<void> _openSettings() {
-    return showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Candy.bgTop,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) {
-          void both(VoidCallback f) {
-            setState(f);
-            setSheet(() {});
-            _savePrefs();
-            _save();
-          }
-
-          const head = TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            fontSize: 14,
-          );
-          return SafeArea(
-            child: Theme(
-              data: ThemeData.dark(),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (widget.daily == null) ...[
-                      const Text('Kích thước', style: head),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          for (final (i, n) in const [3, 4, 5].indexed) ...[
-                            if (i > 0) const SizedBox(width: 10),
-                            Expanded(
-                              child: CandyButton(
-                                sfx: SfxKind.option,
-                                dim: n != _size,
-                                onPressed: () {
-                                  if (n == _size) return;
-                                  Navigator.of(ctx).pop();
-                                  _askNewGame(size: n);
-                                },
-                                child: Text('${n}x$n'),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                    const Text('Chế độ', style: head),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: CandyButton(
-                            colors: Candy.green,
-                            dim: _imageMode,
-                            onPressed: () => both(() => _imageMode = false),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.pin_outlined),
-                                SizedBox(width: 6),
-                                Text('Số'),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: CandyButton(
-                            colors: Candy.orange,
-                            dim: !_imageMode,
-                            onPressed: () => both(() => _imageMode = true),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.image_outlined),
-                                SizedBox(width: 6),
-                                Text('Ảnh'),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_imageMode) ...[
-                      const SizedBox(height: 16),
-                      const Text('Tranh', style: head),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 64,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: SlidingArt.count,
-                          separatorBuilder: (_, _) => const SizedBox(width: 10),
-                          itemBuilder: (_, i) => Semantics(
-                            label: SlidingArt.names[i],
-                            selected: i == _art,
-                            button: true,
-                            child: GestureDetector(
-                              onTap: () {
-                                Sfx.play(SfxKind.option);
-                                both(() => _art = i);
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 160),
-                                width: 64,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    width: 3,
-                                    color: i == _art
-                                        ? Candy.gold
-                                        : Colors.transparent,
-                                  ),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(9),
-                                  child: CustomPaint(painter: ArtPainter(i)),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Hiện số trên ô'),
-                        value: _showNums,
-                        onChanged: (v) => both(() => _showNums = v),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   void _startChosen(int n) {
+    TutorialGate.fire(_id);
     setState(() => _choosing = false);
     _newGame(size: n);
   }
@@ -622,20 +478,17 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
     return CandyBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          automaticallyImplyLeading: false,
-          actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
-        ),
         body: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+          child: PickerScroll(
+            padding: PickerFrame.outer(context),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 580),
+              constraints: PickerFrame.box(context, 580),
               child: GlassPanel(
-                radius: 30,
-                padding: const EdgeInsets.fromLTRB(28, 26, 28, 18),
+                radius: PickerFrame.radius(context),
+                padding: PickerFrame.inner(
+                  context,
+                  const EdgeInsets.fromLTRB(28, 26, 28, 18),
+                ),
                 child: Stack(
                   children: [
                     Column(
@@ -908,16 +761,6 @@ class _SlidingScreenState extends ConsumerState<SlidingScreen>
                                 value: bestMoves == null
                                     ? '-'
                                     : '$bestMoves · ${bestTime == null ? '-' : _fmtTime(bestTime * 1000)}',
-                              ),
-                            ),
-                            Tooltip(
-                              message: 'Tuỳ chọn',
-                              child: CandyButton(
-                                colors: Candy.indigo,
-                                circle: true,
-                                padding: const EdgeInsets.all(8),
-                                onPressed: _openSettings,
-                                child: const Icon(Icons.tune, size: 22),
                               ),
                             ),
                           ],

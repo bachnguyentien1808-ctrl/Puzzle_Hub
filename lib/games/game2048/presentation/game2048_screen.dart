@@ -18,6 +18,7 @@ import 'package:puzzle_hub/features/common/confirm_new_game.dart';
 import 'package:puzzle_hub/features/common/game_block.dart';
 import 'package:puzzle_hub/features/common/game_overlays.dart';
 import 'package:puzzle_hub/features/common/hub_panels.dart';
+import 'package:puzzle_hub/features/howto/tutorial_gate.dart';
 import 'package:puzzle_hub/games/game2048/domain/game2048_engine.dart';
 
 const _id = '2048';
@@ -70,6 +71,14 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
   var _confetti = false;
   final _sw = Stopwatch();
   int? _points;
+
+  /// Đang hiện trang chọn kích thước (thay cho bàn chơi, không đè nhau):
+  /// khác null là đang chọn, hoàn thành bằng kích thước đã chọn hoặc null (×).
+  Completer<int?>? _sizeDone;
+
+  /// Trang chọn mở ngay khi vào game (ván mới): bấm × thì về thẳng trang chủ,
+  /// không để lộ bàn chơi phía sau.
+  bool _sizeInitial = false;
   var _panX = 0.0;
   var _panY = 0.0;
   var _panDone = false;
@@ -104,21 +113,30 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
       _g = Game2048.start(rng: _rng);
       _rebuildTiles(fresh: true);
       _store.saveState(_id, _g.toJson());
-      // Ván mới: hỏi kích thước trước, rồi mới tính lượt chơi.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _chooseFirstSize();
-      });
+      // Ván mới: hỏi kích thước trước (ngay, không dựng bàn chơi trước), rồi
+      // mới tính lượt chơi.
+      _sizeInitial = true;
+      _sizeDone = Completer<int?>();
+      _chooseFirstSize(_sizeDone!.future);
     }
   }
 
-  Future<void> _chooseFirstSize() async {
-    final picked = await _sizeSheet();
+  Future<void> _chooseFirstSize(Future<int?> choice) async {
+    final picked = await choice;
     if (!mounted) return;
-    if (picked != null && picked != _g.size) {
+    _sizeInitial = false;
+    if (picked == null) {
+      // Đóng trang chọn khi vừa vào game: về trang chủ ngay, rồi bỏ ván trống.
+      context.go('/');
+      await _store.clearState(_id);
+      return;
+    }
+    if (picked != _g.size) {
       _restart(size: picked);
     } else {
       await _store.recordStart(statIdFor(_g.size));
     }
+    TutorialGate.fire(_id);
   }
 
   @override
@@ -283,62 +301,123 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
     await _askNewGame(size: picked);
   }
 
+  /// Hiện trang chọn kích thước riêng (như Sudoku); trả về kích thước đã
+  /// chọn, hoặc null nếu bấm ×.
   Future<int?> _sizeSheet() {
-    return showModalBottomSheet<int>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Candy.bgTop,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final n in const [3, 4, 5])
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: CandyButton(
-                    key: ValueKey('size$n'),
-                    colors: switch (n) {
-                      3 => Candy.green,
-                      4 => Candy.blue,
-                      _ => Candy.purple,
-                    },
-                    dim: n != _g.size,
-                    sfx: SfxKind.option,
-                    onPressed: () => Navigator.pop(ctx, n),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: Row(
-                        children: [
-                          Icon(
-                            n == _g.size
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_off,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '$n x $n',
-                                  style: const TextStyle(fontSize: 18),
-                                ),
-                                Text(
-                                  'Kỷ lục ${_store.stats(statIdFor(n)).best ?? 0} - đích ${Game2048.targetFor(n)}',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+    final c = Completer<int?>();
+    setState(() => _sizeDone = c);
+    return c.future;
+  }
+
+  void _finishSize(int? n) {
+    final c = _sizeDone;
+    if (c == null || c.isCompleted) return;
+    // Đóng khi vừa vào game: giữ nguyên trang chọn cho tới khi chuyển trang.
+    if (n == null && _sizeInitial) {
+      c.complete(null);
+      return;
+    }
+    setState(() => _sizeDone = null);
+    c.complete(n);
+  }
+
+  Widget _sizePage() {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Center(
+        child: PickerScroll(
+          padding: PickerFrame.outer(context),
+          child: ConstrainedBox(
+            constraints: PickerFrame.box(context, 580),
+            child: GlassPanel(
+              radius: PickerFrame.radius(context),
+              padding: PickerFrame.inner(
+                context,
+                const EdgeInsets.fromLTRB(26, 28, 26, 24),
+              ),
+              child: Stack(
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Center(
+                        child: CandyButton(
+                          onPressed: null,
+                          colors: Candy.green,
+                          circle: true,
+                          padding: EdgeInsets.all(16),
+                          child: Icon(Icons.grid_view_rounded, size: 52),
+                        ),
                       ),
+                      const SizedBox(height: 14),
+                      const Center(
+                        child: CandyRibbon(
+                          text: 'Chọn kích thước',
+                          colors: Candy.green,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      for (final n in const [3, 4, 5])
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _sizeCard(n),
+                        ),
+                    ],
+                  ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: GlassCloseButton(
+                      key: const ValueKey('size-close'),
+                      onTap: () => _finishSize(null),
                     ),
                   ),
-                ),
-            ],
+                ],
+              ),
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sizeCard(int n) {
+    return CandyButton(
+      key: ValueKey('size$n'),
+      colors: switch (n) {
+        3 => Candy.green,
+        4 => Candy.blue,
+        _ => Candy.purple,
+      },
+      radius: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      dim: n != _g.size,
+      sfx: SfxKind.option,
+      onPressed: () => _finishSize(n),
+      child: SizedBox(
+        width: double.infinity,
+        child: Row(
+          children: [
+            Icon(
+              n == _g.size
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_off,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('$n x $n', style: const TextStyle(fontSize: 22)),
+                  Text(
+                    'Kỷ lục ${_store.stats(statIdFor(n)).best ?? 0} - đích ${Game2048.targetFor(n)}',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -354,6 +433,7 @@ class _Game2048ScreenState extends ConsumerState<Game2048Screen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_sizeDone != null) return _sizePage();
     final won = _g.won && !_g.continued;
     final over = _g.isOver;
     final best = max(_store.stats(statIdFor(_g.size)).best ?? 0, _g.score);

@@ -12,4 +12,4 @@ echo "May nay:   http://localhost:$PORT"
 for ip in $(ifconfig | awk '/inet /{print $2}' | grep -v '^127\.'); do
   echo "Dien thoai: http://$ip:$PORT"
 done
-exec python3 -m http.server $PORT --bind 0.0.0.0 --directory build/web
+exec python3 tools/serve_nocache.py $PORT build/web

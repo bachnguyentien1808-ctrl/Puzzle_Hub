@@ -125,11 +125,9 @@ void main() {
   testWidgets('Chon do kho Kho qua sheet, ban 16x30', (tester) async {
     await _pump(tester);
     await tester.pumpAndSettle();
-    await tester.tapAt(const Offset(5, 5)); // đóng bảng chọn của ván mới
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('new-game')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('confirm-yes')));
+    // Ván mới mở thẳng trang Chọn độ khó (không phải hộp thoại đè lên bàn).
+    expect(find.text('Chọn độ khó'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('level-hard')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('level-hard')));
     await tester.pumpAndSettle();

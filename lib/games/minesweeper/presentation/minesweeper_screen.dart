@@ -18,6 +18,7 @@ import 'package:puzzle_hub/features/common/confirm_new_game.dart';
 import 'package:puzzle_hub/features/common/game_block.dart';
 import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/features/common/pause_cover.dart';
+import 'package:puzzle_hub/features/howto/tutorial_gate.dart';
 import 'package:puzzle_hub/games/minesweeper/domain/minesweeper_engine.dart';
 
 const _id = 'minesweeper';
@@ -63,6 +64,12 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
   int? _points;
   bool _showLose = false;
   bool _timedOut = false;
+
+  /// Đang hiện trang chọn độ khó (thay cho bàn chơi, không đè nhau).
+  bool _showLevels = false;
+
+  /// Trang chọn mở ngay khi vào game: bấm × thì về trang chủ.
+  bool _initialLevels = false;
   bool _resumed = true;
   bool _paused = false;
   final List<String> _undo = [];
@@ -104,9 +111,8 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
       _newGame(level: _level, silent: true);
       // Ván mới: cho chọn độ khó trước khi chơi.
       if (!_daily) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _pickLevel();
-        });
+        _showLevels = true;
+        _initialLevels = true;
       }
     }
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -448,27 +454,42 @@ class _MinesweeperScreenState extends ConsumerState<MinesweeperScreen>
     if (mounted) action();
   }
 
-  Future<void> _pickLevel() async {
-    final pick = await showModalBottomSheet<(MineLevel, _Custom)>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Candy.bgTop,
-      builder: (_) => _LevelSheet(
-        current: _level,
-        custom: _custom,
-        statsOf: (l) => _store.stats(l.statsId),
-      ),
-    );
-    if (pick == null || !mounted) return;
+  /// Hiện trang "Chọn độ khó" riêng (như Sudoku) thay cho bàn chơi.
+  void _pickLevel() => setState(() => _showLevels = true);
+
+  void _levelPicked(MineLevel level, _Custom custom) {
+    _initialLevels = false;
+    TutorialGate.fire(_id);
     setState(() {
-      _custom = pick.$2;
-      _newGame(level: pick.$1);
+      _showLevels = false;
+      _custom = custom;
+      _newGame(level: level);
     });
+  }
+
+  void _levelClosed() {
+    // Vừa vào game mà đóng thì về trang chủ; từ ván đang chơi thì quay lại ván.
+    if (_initialLevels) {
+      // Về trang chủ rồi bỏ ván trống đã lưu: lần sau vào lại là màn "Bắt đầu
+      // chơi", không hỏi tiếp tục.
+      context.go(_store.homeRoute);
+      _store.clearState(_id);
+    } else {
+      setState(() => _showLevels = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_showLevels) {
+      return _LevelSheet(
+        current: _level,
+        custom: _custom,
+        statsOf: (l) => _store.stats(l.statsId),
+        onPick: _levelPicked,
+        onClose: _levelClosed,
+      );
+    }
     final s = Theme.of(context).colorScheme;
     final best = _daily || _level == MineLevel.custom
         ? null
@@ -989,11 +1010,15 @@ class _LevelSheet extends StatefulWidget {
     required this.current,
     required this.custom,
     required this.statsOf,
+    required this.onPick,
+    required this.onClose,
   });
 
   final MineLevel current;
   final _Custom custom;
   final GameStats Function(MineLevel) statsOf;
+  final void Function(MineLevel level, _Custom custom) onPick;
+  final VoidCallback onClose;
 
   @override
   State<_LevelSheet> createState() => _LevelSheetState();
@@ -1005,7 +1030,7 @@ class _LevelSheetState extends State<_LevelSheet> {
   late int _mines = widget.custom.mines;
 
   void _pop(MineLevel l) =>
-      Navigator.of(context).pop((l, (rows: _rows, cols: _cols, mines: _mines)));
+      widget.onPick(l, (rows: _rows, cols: _cols, mines: _mines));
 
   void _clampMines() =>
       _mines = _mines.clamp(1, Minesweeper.maxMinesFor(_rows, _cols));
@@ -1020,32 +1045,70 @@ class _LevelSheetState extends State<_LevelSheet> {
   Widget build(BuildContext context) {
     final err = Minesweeper.validateConfig(_rows, _cols, _mines);
     final maxMines = Minesweeper.maxMinesFor(_rows, _cols);
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: EdgeInsets.only(
-          left: 18,
-          right: 18,
-          bottom: MediaQuery.viewInsetsOf(context).bottom + 14,
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 520),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Center(
-                  child: CandyRibbon(text: 'Chọn độ khó', colors: Candy.red),
+    // Một trang riêng như Sudoku: khối kính giữa nền game, nút × ở góc. Nền
+    // game do GameIntro bọc sẵn bên ngoài.
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Center(
+        child: PickerScroll(
+          padding: PickerFrame.mobile(context)
+              ? EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom)
+              : EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  MediaQuery.viewInsetsOf(context).bottom + 16,
                 ),
-                const SizedBox(height: 14),
-                for (final l in [
-                  MineLevel.easy,
-                  MineLevel.medium,
-                  MineLevel.hard,
-                ]) ...[_levelCard(l), const SizedBox(height: 10)],
-                const SizedBox(height: 4),
-                _customPanel(err, maxMines),
-              ],
+          child: ConstrainedBox(
+            constraints: PickerFrame.box(context, 580),
+            child: GlassPanel(
+              radius: PickerFrame.radius(context),
+              padding: PickerFrame.inner(
+                context,
+                const EdgeInsets.fromLTRB(26, 28, 26, 24),
+              ),
+              child: Stack(
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Center(
+                        child: CandyButton(
+                          onPressed: null,
+                          colors: Candy.red,
+                          circle: true,
+                          padding: EdgeInsets.all(16),
+                          child: Icon(Icons.flag_rounded, size: 52),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Center(
+                        child: CandyRibbon(
+                          text: 'Chọn độ khó',
+                          colors: Candy.red,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      for (final l in [
+                        MineLevel.easy,
+                        MineLevel.medium,
+                        MineLevel.hard,
+                      ]) ...[_levelCard(l), const SizedBox(height: 10)],
+                      const SizedBox(height: 4),
+                      _customPanel(err, maxMines),
+                    ],
+                  ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: GlassCloseButton(
+                      key: const Key('level-close'),
+                      onTap: widget.onClose,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1098,8 +1161,18 @@ class _LevelSheetState extends State<_LevelSheet> {
   }
 
   Widget _customPanel(String? err, int maxMines) {
-    return GlassPanel(
+    // Nền xanh đậm (không dùng kính trong kính: chữ trắng bị lẫn vào nền sáng).
+    return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xF21B3F8E), Color(0xF212296B)],
+        ),
+        border: Border.all(color: const Color(0x884FD6FF), width: 2),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1195,7 +1268,7 @@ class _LevelSheetState extends State<_LevelSheet> {
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
               activeTrackColor: Candy.gold,
-              inactiveTrackColor: Colors.white30,
+              inactiveTrackColor: Colors.white38,
               thumbColor: Colors.white,
               overlayColor: Colors.white24,
               activeTickMarkColor: Colors.transparent,
@@ -1216,7 +1289,7 @@ class _LevelSheetState extends State<_LevelSheet> {
           width: 44,
           padding: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.black26,
+            color: const Color(0x66000000),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Text(

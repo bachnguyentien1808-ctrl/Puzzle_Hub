@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:puzzle_hub/core/audio/sfx.dart';
+import 'package:puzzle_hub/core/ui/candy.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
+import 'package:puzzle_hub/features/common/confirm_new_game.dart';
 
 /// Khoi kinh lon cua man choi: dau khoi co mui ten quay lai + ten game, ben
 /// duoi la noi dung (thanh thong tin, ban choi, nut dieu khien).
@@ -11,12 +13,20 @@ class GameBlock extends StatelessWidget {
     required this.child,
     this.actions = const [],
     this.expand = false,
+    this.confirmExit = true,
+    this.fullBleed = false,
     super.key,
   });
 
   final String title;
   final VoidCallback onBack;
   final Widget child;
+
+  /// true: trên điện thoại phủ kín màn hình (trang chọn ải / mức).
+  final bool fullBleed;
+
+  /// false: bấm quay lại thoát luôn, không hỏi (trang chọn ải/mức).
+  final bool confirmExit;
 
   /// Cac chuc nang (diem, menu, hoan tac...) nam o ben phai dau khoi.
   final List<Widget> actions;
@@ -27,19 +37,31 @@ class GameBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassPanel(
-      radius: 30,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+    final bleed = fullBleed && PickerFrame.mobile(context);
+    final panel = GlassPanel(
+      radius: bleed ? 0 : 30,
+      padding: bleed
+          ? PickerFrame.inner(
+              context,
+              const EdgeInsets.fromLTRB(12, 12, 12, 14),
+            )
+          : const EdgeInsets.fromLTRB(12, 12, 12, 14),
       child: Column(
         mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          GameBlockHeader(title: title, onBack: onBack, actions: actions),
+          GameBlockHeader(
+            title: title,
+            onBack: onBack,
+            actions: actions,
+            confirmExit: confirmExit,
+          ),
           const SizedBox(height: 10),
           if (expand) Expanded(child: child) else child,
         ],
       ),
     );
+    return fullBleed ? KeepBackdropStill(child: panel) : panel;
   }
 }
 
@@ -50,12 +72,14 @@ class GameBlockHeader extends StatelessWidget {
     required this.title,
     required this.onBack,
     this.actions = const [],
+    this.confirmExit = true,
     super.key,
   });
 
   final String title;
   final VoidCallback onBack;
   final List<Widget> actions;
+  final bool confirmExit;
 
   @override
   Widget build(BuildContext context) {
@@ -66,9 +90,9 @@ class GameBlockHeader extends StatelessWidget {
           child: GestureDetector(
             key: const Key('game-back'),
             behavior: HitTestBehavior.opaque,
-            onTap: () {
+            onTap: () async {
               Sfx.play(SfxKind.back);
-              onBack();
+              if (!confirmExit || await confirmExitGame(context)) onBack();
             },
             child: Container(
               width: 38,

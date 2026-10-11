@@ -58,6 +58,68 @@ abstract final class CandyMotion {
   static bool animatedBackground = true;
 }
 
+/// Dem so man dang yeu cau nen dung yen (man bat dau choi, man chon muc...):
+/// > 0 thi anh nen va hat bay dung lai, khong chuyen dong.
+abstract final class BackdropStill {
+  static final count = ValueNotifier<int>(0);
+}
+
+/// Boc mot man de trong luc man do hien, nen game dung yen khong di chuyen.
+class KeepBackdropStill extends StatefulWidget {
+  const KeepBackdropStill({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  State<KeepBackdropStill> createState() => _KeepBackdropStillState();
+}
+
+class _KeepBackdropStillState extends State<KeepBackdropStill> {
+  bool _on = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Doi het khung hinh dau roi moi doi bo dem (khong doi trang thai luc build).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _on = true;
+      BackdropStill.count.value++;
+    });
+  }
+
+  @override
+  void dispose() {
+    if (_on) {
+      scheduleMicrotask(() => BackdropStill.count.value--);
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// Cuon khong nay (dung yen), cho cac trang chon phu kin man hinh; boc luon
+/// [KeepBackdropStill] de nen khong chuyen dong.
+class PickerScroll extends StatelessWidget {
+  const PickerScroll({required this.child, this.padding, super.key});
+
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return KeepBackdropStill(
+      child: SingleChildScrollView(
+        physics: const ClampingScrollPhysics(),
+        padding: padding,
+        child: child,
+      ),
+    );
+  }
+}
+
 /// Danh dau "man nay da co nen rieng" de CandyBackground long ben trong
 /// (nhieu man game tu boc) khong ve de len nen cua game.
 class GameBackdropScope extends InheritedWidget {
@@ -150,11 +212,23 @@ class _AnimatedBackdropState extends State<AnimatedBackdrop>
   );
 
   @override
+  void initState() {
+    super.initState();
+    BackdropStill.count.addListener(_applyMotion);
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _applyMotion();
+  }
+
+  void _applyMotion() {
+    if (!mounted) return;
     final still =
         !widget.animate ||
         !CandyMotion.animatedBackground ||
+        BackdropStill.count.value > 0 ||
         MediaQuery.disableAnimationsOf(context);
     if (still) {
       _c
@@ -175,6 +249,7 @@ class _AnimatedBackdropState extends State<AnimatedBackdrop>
 
   @override
   void dispose() {
+    BackdropStill.count.removeListener(_applyMotion);
     _c.dispose();
     _fx.dispose();
     _drift.dispose();
@@ -552,7 +627,76 @@ class CandyBackground extends StatelessWidget {
   }
 }
 
-/// Nen cua cac man game: mot anh chung, dung yen, doi theo buoi.
+/// Kiểu nền riêng của từng game: màu phủ nhẹ + hạt bay + hướng bay.
+enum _Flow { rise, fall, drift, twinkle }
+
+class _GameLook {
+  const _GameLook(this.wash, this.icon, this.iconColor, this.flow);
+
+  final Color wash;
+  final IconData icon;
+  final Color iconColor;
+  final _Flow flow;
+}
+
+/// Kiểu nền của game: màu phủ trùng màu thẻ game ngoài trang chủ.
+_GameLook? _lookFor(String id) {
+  final wash = Candy.forId(id).last;
+  return switch (id) {
+    'sudoku' => _GameLook(
+      wash,
+      Icons.grid_view_rounded,
+      const Color(0xFFC5CAE9),
+      _Flow.twinkle,
+    ),
+    '2048' => _GameLook(
+      wash,
+      Icons.star_rounded,
+      const Color(0xFFFFE082),
+      _Flow.rise,
+    ),
+    'nonogram' => _GameLook(
+      wash,
+      Icons.auto_awesome_rounded,
+      const Color(0xFFFFE0B2),
+      _Flow.twinkle,
+    ),
+    'memory' => _GameLook(
+      wash,
+      Icons.favorite_rounded,
+      const Color(0xFFFFE0B2),
+      _Flow.rise,
+    ),
+    'minesweeper' => _GameLook(
+      wash,
+      Icons.bubble_chart_rounded,
+      const Color(0xFFFFCDD2),
+      _Flow.rise,
+    ),
+    'lights_out' => _GameLook(
+      wash,
+      Icons.nightlight_round,
+      const Color(0xFFFFF59D),
+      _Flow.twinkle,
+    ),
+    'sliding' => _GameLook(
+      wash,
+      Icons.extension_rounded,
+      const Color(0xFFFFCDD2),
+      _Flow.drift,
+    ),
+    'kakuro' => _GameLook(
+      wash,
+      Icons.add_rounded,
+      const Color(0xFFB2DFDB),
+      _Flow.fall,
+    ),
+    _ => null,
+  };
+}
+
+/// Nen cua cac man game: anh troi dong (zoom, may troi) + moi game mot kieu
+/// rieng (mau phu va hat bay khac nhau), doi theo buoi.
 class GameBackdrop extends StatelessWidget {
   const GameBackdrop({required this.gameId, required this.child, super.key});
 
@@ -564,15 +708,145 @@ class GameBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final look = _lookFor(gameId);
     return GameBackdropScope(
       child: AnimatedBackdrop(
-        animate: false,
         asset: assetFor(gameId),
         light: Theme.of(context).brightness == Brightness.light,
-        child: child,
+        child: look == null
+            ? child
+            : GameTint(
+                color: look.wash,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Mau phu rieng cua game (khong nhan chuot).
+                    IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              look.wash.withValues(alpha: .30),
+                              look.wash.withValues(alpha: .12),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (CandyMotion.animatedBackground &&
+                        !MediaQuery.disableAnimationsOf(context))
+                      IgnorePointer(child: _FloatFx(look: look)),
+                    child,
+                  ],
+                ),
+              ),
       ),
     );
   }
+}
+
+/// Hat bay cua game: mot controller 30 giay, moi hat di so nguyen vong.
+class _FloatFx extends StatefulWidget {
+  const _FloatFx({required this.look});
+
+  final _GameLook look;
+
+  @override
+  State<_FloatFx> createState() => _FloatFxState();
+}
+
+class _FloatFxState extends State<_FloatFx>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 30),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (_, _) => CustomPaint(
+          size: Size.infinite,
+          painter: _FloatPainter(widget.look, _c.value),
+        ),
+      ),
+    );
+  }
+}
+
+class _FloatPainter extends CustomPainter {
+  _FloatPainter(this.look, this.t);
+
+  final _GameLook look;
+  final double t;
+
+  static final _rng = math.Random(7);
+  static final _parts = List.generate(
+    18,
+    (_) => (
+      x: _rng.nextDouble(),
+      y: _rng.nextDouble(),
+      size: 14.0 + _rng.nextDouble() * 20,
+      cycles: 1 + _rng.nextInt(3),
+      sway: _rng.nextDouble() * 2 * math.pi,
+    ),
+  );
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    for (final p in _parts) {
+      final f = (p.y + t * p.cycles) % 1.0;
+      var x = p.x;
+      var y = p.y;
+      var a = 1.0;
+      switch (look.flow) {
+        case _Flow.rise:
+          y = 1 - f;
+          x = p.x + math.sin(f * 2 * math.pi + p.sway) * .03;
+          a = math.sin(f * math.pi);
+        case _Flow.fall:
+          y = f;
+          x = p.x + math.sin(f * 2 * math.pi + p.sway) * .02;
+          a = math.sin(f * math.pi);
+        case _Flow.drift:
+          x = f;
+          y = p.y + math.sin(f * 2 * math.pi + p.sway) * .03;
+          a = math.sin(f * math.pi);
+        case _Flow.twinkle:
+          a = .25 + .75 * (.5 + .5 * math.sin(f * 2 * math.pi + p.sway));
+      }
+      tp
+        ..text = TextSpan(
+          text: String.fromCharCode(look.icon.codePoint),
+          style: TextStyle(
+            fontFamily: look.icon.fontFamily,
+            package: look.icon.fontPackage,
+            fontSize: p.size,
+            color: look.iconColor.withValues(alpha: .55 * a.clamp(0.0, 1.0)),
+          ),
+        )
+        ..layout();
+      tp.paint(
+        canvas,
+        Offset(x * size.width - tp.width / 2, y * size.height - tp.height / 2),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FloatPainter old) =>
+      old.t != t || old.look.icon != look.icon || old.look.wash != look.wash;
 }
 
 /// Lop bong trang o nua tren mot khoi mau.
@@ -582,36 +856,15 @@ class CandyGloss extends StatelessWidget {
   final double radius;
   final double opacity;
 
+  /// Đã bỏ vệt bóng trắng mờ trên các nút / thẻ / ô (trông như vết bẩn): widget
+  /// giữ lại để các nơi dùng không phải sửa, nhưng không vẽ gì. Vẫn là con
+  /// Positioned.fill như trước: nhiều chỗ chỉ có mình nó trong Stack, và Stack
+  /// chỉ phình kín khung khi mọi con đều là Positioned (nếu không ô tô màu
+  /// co về 0 và biến mất).
   @override
   Widget build(BuildContext context) {
-    // Nút/ô tròn: không vẽ vệt bóng. Vệt trắng mờ ở đỉnh vòng tròn trông như
-    // vết bẩn (và nếu rộng bằng cả nút thì tràn ra ngoài vòng).
     if (radius >= 60) return const SizedBox.shrink();
-    return Positioned.fill(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(3, 2, 3, 0),
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: FractionallySizedBox(
-            heightFactor: 0.45,
-            widthFactor: 1,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(radius),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.white.withValues(alpha: opacity),
-                    Colors.white.withValues(alpha: 0.02),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    return const Positioned.fill(child: SizedBox.shrink());
   }
 }
 

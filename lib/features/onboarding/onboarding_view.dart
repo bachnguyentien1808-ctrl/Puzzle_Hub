@@ -204,28 +204,6 @@ class _OnboardingViewState extends State<OnboardingView> {
               ),
             ),
           ),
-          // Nut Bo qua o goc tren ben phai cua ca man hinh.
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: AnimatedOpacity(
-                opacity: last ? 0 : 1,
-                duration: const Duration(milliseconds: 200),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 12, 16, 0),
-                  child: CandyButton(
-                    onPressed: last ? null : widget.onDone,
-                    radius: 16,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 6,
-                    ),
-                    child: const Text('Bỏ qua'),
-                  ),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );

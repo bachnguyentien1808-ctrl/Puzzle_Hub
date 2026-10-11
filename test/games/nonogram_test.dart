@@ -147,6 +147,28 @@ void main() {
     expect(NonogramProgress.fromJson(null, (i) => 5).saves, isEmpty);
   });
 
+  testWidgets('choi o moi ai: bam ai 2 la mo ngay, khong bi khoa', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPrefsProvider.overrideWithValue(prefs)],
+        child: const MaterialApp(home: NonogramScreen()),
+      ),
+    );
+    expect(find.text('Ải 1'), findsOneWidget);
+    expect(find.text('Ải 2'), findsOneWidget);
+    expect(find.byIcon(Icons.lock_rounded), findsNothing);
+    await tester.tap(find.text(nonogramPuzzles[1].name));
+    await tester.pump();
+    expect(find.text('${nonogramPuzzles[1].name} 5x5'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('man chon man hien du goi; mo tranh, keo to mot hang', (
     tester,
   ) async {

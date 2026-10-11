@@ -17,7 +17,7 @@ import 'package:puzzle_hub/features/common/confirm_new_game.dart';
 import 'package:puzzle_hub/features/common/game_block.dart';
 import 'package:puzzle_hub/features/common/game_overlays.dart';
 import 'package:puzzle_hub/features/common/hub_panels.dart';
-import 'package:puzzle_hub/features/common/start_menu.dart';
+import 'package:puzzle_hub/features/howto/tutorial_gate.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_engine.dart';
 import 'package:puzzle_hub/games/sudoku/domain/sudoku_game.dart';
 import 'package:puzzle_hub/games/sudoku/presentation/sudoku_board.dart';
@@ -151,6 +151,7 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
   }
 
   void _startNew(SudokuLevel level, {bool notify = true}) {
+    TutorialGate.fire(_id);
     final seed = _daily ? _store.rngFor(_id)!.nextInt(1 << 31) : null;
     final gen = SudokuEngine.generateLevel(level, seed: seed);
     void apply() {
@@ -647,12 +648,16 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
     return CandyBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          automaticallyImplyLeading: false,
-          actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
-        ),
+        appBar: g == null
+            ? null
+            : AppBar(
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                automaticallyImplyLeading: false,
+                // Trang chọn độ khó không có thanh này; vào ván mới có loa / điểm
+                // / cài đặt.
+                actions: const [SoundAction(), ScoreChip(), HubMenuAction()],
+              ),
         body: SafeArea(
           child: Focus(
             focusNode: _focus,
@@ -676,14 +681,17 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
 
   Widget _pickerView() {
     return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      child: PickerScroll(
+        padding: PickerFrame.outer(context),
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
+          constraints: PickerFrame.box(context, 600),
           // Tất cả trong một khối kính, nút × (đỏ khi rê chuột) ở góc phải.
           child: GlassPanel(
-            radius: 30,
-            padding: const EdgeInsets.fromLTRB(28, 30, 28, 26),
+            radius: PickerFrame.radius(context),
+            padding: PickerFrame.inner(
+              context,
+              const EdgeInsets.fromLTRB(28, 30, 28, 26),
+            ),
             child: Stack(
               children: [
                 Column(
@@ -710,7 +718,6 @@ class _SudokuScreenState extends ConsumerState<SudokuScreen>
                       stats: (l) => _store.stats(l.statsId),
                       onPick: _startNew,
                     ),
-                    const GameDescriptionNote(gameId: 'sudoku'),
                   ],
                 ),
                 Positioned(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:puzzle_hub/core/storage/progress_store.dart';
 import 'package:puzzle_hub/features/howto/game_tutorials.dart';
+import 'package:puzzle_hub/features/howto/tutorial_gate.dart';
 import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/games/game_registry.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,12 +27,25 @@ void main() {
       overrides: [
         progressStoreProvider.overrideWithValue(ProgressStore(prefs)),
       ],
-      child: const MaterialApp(
-        home: GameIntro(gameId: 'minesweeper', child: Scaffold()),
+      child: MaterialApp(
+        home: GameIntro(
+          gameId: 'minesweeper',
+          tutorialEveryTime: false,
+          // Game gọi fire khi bàn chơi hiện ra (sau khi chọn mức).
+          child: Builder(
+            builder: (_) {
+              TutorialGate.fire('minesweeper');
+              return const Scaffold();
+            },
+          ),
+        ),
       ),
     );
 
     await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    // Vào game là màn "Bắt đầu chơi"; bấm vào mới tới hướng dẫn lần đầu.
+    await tester.tap(find.byKey(const ValueKey('start-play')));
     await tester.pumpAndSettle();
     expect(find.text('Mở ô'), findsOneWidget);
     expect(find.text('Bước 1/4'), findsOneWidget);

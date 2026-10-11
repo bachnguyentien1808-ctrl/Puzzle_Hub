@@ -14,6 +14,7 @@ import 'package:puzzle_hub/features/common/confirm_new_game.dart';
 import 'package:puzzle_hub/features/common/game_block.dart';
 import 'package:puzzle_hub/features/common/game_overlays.dart';
 import 'package:puzzle_hub/features/common/hub_panels.dart';
+import 'package:puzzle_hub/features/howto/tutorial_gate.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_engine.dart';
 import 'package:puzzle_hub/games/lights_out/domain/lights_out_levels.dart';
 
@@ -118,6 +119,7 @@ class _LightsOutPlayState extends State<LightsOutPlay> {
   @override
   void initState() {
     super.initState();
+    TutorialGate.fire(lightsOutId);
     LightsOut? restored;
     final saved = _s.resume || _s.mode == LightsMode.level
         ? _store.loadState(_stateId)

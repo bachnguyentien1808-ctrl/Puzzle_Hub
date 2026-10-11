@@ -159,7 +159,8 @@ void main() {
     testWidgets('vuot doi diem, nut hoan tac, hoi khi van moi', (tester) async {
       final store = await pump(tester);
       await tester.pumpAndSettle();
-      await tester.tapAt(const Offset(5, 5)); // đóng bảng chọn của ván mới
+      // Ván mới mở trang chọn kích thước: chọn 4x4 để vào chơi.
+      await tester.tap(find.byKey(const ValueKey('size4')));
       await tester.pumpAndSettle();
       expect(find.text('2048  4x4'), findsOneWidget);
       expect(find.byKey(const ValueKey('undo')), findsOneWidget);
@@ -210,6 +211,9 @@ void main() {
         tester,
         prefs: {'state.2048': '{"cells":[[2,4,2],[4,2,4],[2,4,2]],"score":10}'},
       );
+      // Ván cũ đã hết nước đi: mở trang chọn kích thước, chọn 4x4 để chơi.
+      await tester.tap(find.byKey(const ValueKey('size4')));
+      await tester.pumpAndSettle();
       expect(find.text('2048  4x4'), findsOneWidget);
       expect(find.text('Hết nước đi'), findsNothing);
     });

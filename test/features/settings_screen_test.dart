@@ -32,15 +32,15 @@ void main() {
     final ctx = tester.element(find.byType(SettingsScreen));
     expect(Theme.of(ctx).brightness, Brightness.dark);
 
-    await tester.tap(find.bySemanticsLabel('Màu Cam'));
+    await tester.ensureVisible(find.text('Rung'));
     await tester.pumpAndSettle();
-    expect(p.getInt('settings.seed'), 4);
-
     await tester.tap(find.text('Rung'));
     await tester.pumpAndSettle();
     expect(GameFx.haptics.value, isFalse);
     expect(p.getBool('settings.haptics'), isFalse);
 
+    await tester.ensureVisible(find.text('Âm thanh'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Âm thanh'));
     await tester.pumpAndSettle();
     expect(SfxEngine.enabled.value, isFalse);

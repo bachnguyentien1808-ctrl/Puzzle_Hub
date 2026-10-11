@@ -67,8 +67,26 @@ class ProgressStore {
 
   Future<void> _putStats(String id, GameStats s) async {
     await _prefs.setString('$_statsPrefix$id', jsonEncode(s.toJson()));
+    await _touch(id);
     version.value++;
   }
+
+  static const _lastPlayedPrefix = 'lastPlayed.';
+
+  /// Mốc lần chơi gần nhất của game (ms); 0 nếu chưa chơi. Dùng để đẩy game
+  /// vừa chơi lên đầu trang chủ.
+  int lastPlayed(String id) => _prefs.getInt('$_lastPlayedPrefix$id') ?? 0;
+
+  /// Ghi nhận vừa mở game (dù chưa bắt đầu ván): game lên đầu trang chủ.
+  Future<void> markOpened(String id) async {
+    await _touch(id);
+    version.value++;
+  }
+
+  Future<void> _touch(String id) => _prefs.setInt(
+    '$_lastPlayedPrefix${id.split('.').first}',
+    DateTime.now().millisecondsSinceEpoch,
+  );
 
   Future<void> recordStart(String id) {
     final s = stats(id);
@@ -178,6 +196,7 @@ class ProgressStore {
 
   Future<void> saveState(String id, Map<String, dynamic> state) async {
     await _prefs.setString('$_statePrefix$id', jsonEncode(state));
+    await _touch(id);
     version.value++;
   }
 
@@ -278,6 +297,7 @@ class ProgressStore {
           k == _dailyKey ||
           k == _scoreTotalKey ||
           k.startsWith(_scorePrefix) ||
+          k.startsWith(_lastPlayedPrefix) ||
           k == _celebratedKey,
     );
     for (final k in keys.toList()) {

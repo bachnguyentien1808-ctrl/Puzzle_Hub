@@ -92,10 +92,17 @@ class _HomeBodyState extends ConsumerState<_HomeBody>
       body: ValueListenableBuilder<int>(
         valueListenable: store.version,
         builder: (context, _, _) {
-          final games = [
-            for (final g in gameRegistry)
-              if (_filter == GameCategory.all || categoryOf(g.id) == _filter) g,
-          ];
+          final games =
+              [
+                for (final g in gameRegistry)
+                  if (_filter == GameCategory.all ||
+                      categoryOf(g.id) == _filter)
+                    g,
+              ]..sort(
+                // Game vừa chơi xong lên đầu; chưa chơi giữ nguyên thứ tự gốc.
+                (a, b) =>
+                    store.lastPlayed(b.id).compareTo(store.lastPlayed(a.id)),
+              );
           return CustomScrollView(
             slivers: [
               SliverAppBar(

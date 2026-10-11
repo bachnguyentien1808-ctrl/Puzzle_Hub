@@ -4,18 +4,47 @@ import 'package:puzzle_hub/core/ui/candy.dart';
 
 /// Hỏi "Bạn có muốn làm mới không?" trước khi bỏ ván đang chơi, theo kiểu
 /// thẻ kẹo của ứng dụng. Trả về true nếu người chơi chọn Có.
-Future<bool> confirmNewGame(BuildContext context) async {
+Future<bool> confirmNewGame(BuildContext context) => _ask(
+  context,
+  title: 'Làm mới ván chơi?',
+  message: 'Bạn có muốn làm mới không?\nVán đang chơi sẽ bị bỏ.',
+  icon: Icons.refresh_rounded,
+);
+
+/// Hỏi "Bạn có chắc chắn muốn thoát không?" khi bấm mũi tên quay lại trong
+/// game. Trả về true nếu người chơi chọn Có.
+Future<bool> confirmExitGame(BuildContext context) => _ask(
+  context,
+  title: 'Thoát game?',
+  message: 'Bạn có chắc chắn muốn thoát không?',
+  icon: Icons.exit_to_app_rounded,
+);
+
+Future<bool> _ask(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required IconData icon,
+}) async {
   Sfx.play(SfxKind.open);
   final ok = await showDialog<bool>(
     context: context,
     barrierColor: Colors.black54,
-    builder: (ctx) => const _ConfirmCard(),
+    builder: (ctx) => _ConfirmCard(title: title, message: message, icon: icon),
   );
   return ok ?? false;
 }
 
 class _ConfirmCard extends StatelessWidget {
-  const _ConfirmCard();
+  const _ConfirmCard({
+    required this.title,
+    required this.message,
+    required this.icon,
+  });
+
+  final String title;
+  final String message;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -67,20 +96,20 @@ class _ConfirmCard extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                'Làm mới ván chơi?',
+              Text(
+                title,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Candy.brown,
                   fontSize: 24,
                   fontWeight: FontWeight.w900,
                 ),
               ),
               const SizedBox(height: 10),
-              const Text(
-                'Bạn có muốn làm mới không?\nVán đang chơi sẽ bị bỏ.',
+              Text(
+                message,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Candy.brown,
                   fontSize: 16,
                   height: 1.35,
@@ -148,11 +177,7 @@ class _ConfirmCard extends StatelessWidget {
               ),
             ],
           ),
-          child: const Icon(
-            Icons.refresh_rounded,
-            size: 42,
-            color: Colors.white,
-          ),
+          child: Icon(icon, size: 42, color: Colors.white),
         ),
       ],
     );

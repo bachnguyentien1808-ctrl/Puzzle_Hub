@@ -14,12 +14,12 @@ import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/game_action_button.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/common/card_close_button.dart';
 import 'package:puzzle_hub/features/common/confirm_new_game.dart';
 import 'package:puzzle_hub/features/common/game_block.dart';
 import 'package:puzzle_hub/features/common/game_overlays.dart';
 import 'package:puzzle_hub/features/common/hub_panels.dart';
 import 'package:puzzle_hub/features/common/pause_cover.dart';
+import 'package:puzzle_hub/features/howto/tutorial_gate.dart';
 import 'package:puzzle_hub/games/kakuro/domain/kakuro_engine.dart';
 
 const _id = 'kakuro';
@@ -78,6 +78,13 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
   /// Người chơi bấm Tạm dừng (khác với tự dừng khi app ra nền).
   bool _userPaused = false;
   bool _newBest = false;
+
+  /// Đang hiện trang chọn mức (thay cho bàn chơi, không đè nhau): khác null là
+  /// đang chọn, hoàn thành bằng chỉ số mức hoặc null (bấm ×).
+  Completer<int?>? _levelDone;
+
+  /// Trang chọn mở ngay khi vào game (ván mới): bấm × thì về thẳng trang chủ.
+  bool _levelInitial = false;
   int? _points;
   (int, int)? _sel;
   final List<_Move> _undo = [];
@@ -107,10 +114,11 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
       final daily = _store.isDaily;
       _newGame(daily ? _dailyLevel : 1, save: false, record: daily);
       if (!daily) {
-        // Ván mới: chọn mức trước, tính lượt chơi sau đó.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _chooseLevel();
-        });
+        // Ván mới: chọn mức trước (hiện ngay, không dựng bàn chơi trước), tính
+        // lượt chơi sau đó.
+        _levelInitial = true;
+        _levelDone = Completer<int?>();
+        _chooseLevel(_levelDone!.future);
       }
     }
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -185,24 +193,43 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
     });
   }
 
-  /// Hộp chọn mức chơi kiểu thẻ kẹo; trả về chỉ số mức, null nếu đóng.
+  /// Hiện trang chọn mức riêng (như Sudoku); trả về chỉ số mức, null nếu đóng.
   Future<int?> _levelSheet() {
-    return showDialog<int>(
-      context: context,
-      barrierColor: Colors.black54,
-      builder: (ctx) => _LevelDialog(current: _level),
-    );
+    final c = Completer<int?>();
+    setState(() => _levelDone = c);
+    return c.future;
+  }
+
+  void _finishLevel(int? i) {
+    final c = _levelDone;
+    if (c == null || c.isCompleted) return;
+    // Đóng khi vừa vào game: giữ nguyên trang chọn cho tới khi chuyển trang.
+    if (i == null && _levelInitial) {
+      c.complete(null);
+      return;
+    }
+    setState(() => _levelDone = null);
+    c.complete(i);
   }
 
   /// Ván mới đầu tiên: chọn mức trước, tính lượt chơi sau đó.
-  Future<void> _chooseLevel() async {
-    final picked = await _levelSheet();
+  Future<void> _chooseLevel(Future<int?> choice) async {
+    final picked = await choice;
     if (!mounted) return;
-    if (picked != null && picked != _level) {
+    _levelInitial = false;
+    if (picked == null) {
+      // Đóng trang chọn khi vừa vào game: về trang chủ ngay, rồi bỏ ván trống
+      // đã lưu để lần sau vào lại là màn "Bắt đầu chơi", không hỏi tiếp tục.
+      context.go(_store.homeRoute);
+      await _store.clearState(_id);
+      return;
+    }
+    if (picked != _level) {
       _newGame(picked);
     } else {
       await _store.recordStart(_id);
     }
+    TutorialGate.fire(_id);
   }
 
   /// Nút Ván mới: hỏi xác nhận, rồi chọn mức (đề ngày thì chơi lại cùng đề).
@@ -492,6 +519,13 @@ class _KakuroScreenState extends ConsumerState<KakuroScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_levelDone != null) {
+      return _LevelPage(
+        current: _level,
+        onPick: _finishLevel,
+        onClose: () => _finishLevel(null),
+      );
+    }
     final scheme = Theme.of(context).colorScheme;
     final best = _store.isDaily ? null : _store.stats(_bestKey).best;
     return Scaffold(
@@ -1238,128 +1272,93 @@ class _RunToast extends StatelessWidget {
   }
 }
 
-/// Hộp chọn mức chơi Kakuro: thẻ kem, ba nút mức có hình bàn thu nhỏ.
-class _LevelDialog extends StatelessWidget {
-  const _LevelDialog({required this.current});
+/// Trang chọn mức chơi Kakuro (như Sudoku): khối kính giữa nền game, huy hiệu,
+/// dải tên, ba nút mức có hình bàn thu nhỏ, nút × ở góc. Nền game do GameIntro
+/// bọc sẵn bên ngoài.
+class _LevelPage extends StatelessWidget {
+  const _LevelPage({
+    required this.current,
+    required this.onPick,
+    required this.onClose,
+  });
 
   final int current;
+  final ValueChanged<int> onPick;
+  final VoidCallback onClose;
 
   static const _colors = [Candy.green, Candy.orange, Candy.red];
 
   @override
   Widget build(BuildContext context) {
-    final reduce = MediaQuery.disableAnimationsOf(context);
-    return Dialog(
+    return Scaffold(
       backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      child: Center(
-        child: SingleChildScrollView(
+      body: Center(
+        child: PickerScroll(
+          padding: PickerFrame.outer(context),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: reduce ? 1 : 0.88, end: 1),
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutBack,
-              builder: (_, v, child) => Transform.scale(scale: v, child: child),
-              child: _card(context),
+            constraints: PickerFrame.box(context, 580),
+            child: GlassPanel(
+              radius: PickerFrame.radius(context),
+              padding: PickerFrame.inner(
+                context,
+                const EdgeInsets.fromLTRB(26, 28, 26, 24),
+              ),
+              child: Stack(
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Center(
+                        child: CandyButton(
+                          onPressed: null,
+                          colors: Candy.purple,
+                          circle: true,
+                          padding: EdgeInsets.all(16),
+                          child: Icon(Icons.grid_view_rounded, size: 52),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Center(
+                        child: CandyRibbon(
+                          text: 'Chọn mức chơi',
+                          colors: Candy.purple,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Mức càng cao, bàn càng lớn',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          shadows: [
+                            Shadow(color: Color(0x99000000), blurRadius: 3),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      for (final (i, lv) in _levels.indexed) ...[
+                        if (i > 0) const SizedBox(height: 10),
+                        _levelButton(context, i, lv),
+                      ],
+                    ],
+                  ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: GlassCloseButton(
+                      key: const ValueKey('kakuro-level-close'),
+                      onTap: onClose,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _card(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.topCenter,
-      children: [
-        Container(
-          margin: const EdgeInsets.only(top: 38),
-          padding: const EdgeInsets.fromLTRB(20, 50, 20, 20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFFFFF6E3), Candy.cream],
-            ),
-            border: Border.all(color: Candy.bgTop, width: 4),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x88000000),
-                offset: Offset(0, 10),
-                blurRadius: 22,
-              ),
-              BoxShadow(color: Colors.white30, spreadRadius: 5),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Chọn mức chơi',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Candy.brown,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Mức càng cao, bàn càng lớn',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Candy.brown,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              for (final (i, lv) in _levels.indexed) ...[
-                if (i > 0) const SizedBox(height: 10),
-                _levelButton(context, i, lv),
-              ],
-            ],
-          ),
-        ),
-        Container(
-          width: 76,
-          height: 76,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: Candy.purple,
-            ),
-            border: Border.all(color: Colors.white, width: 4),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x66000000),
-                offset: Offset(0, 5),
-                blurRadius: 10,
-              ),
-            ],
-          ),
-          child: const Icon(
-            Icons.grid_view_rounded,
-            size: 40,
-            color: Colors.white,
-          ),
-        ),
-        Positioned(
-          top: 46,
-          right: 8,
-          child: CardCloseButton(
-            key: const ValueKey('kakuro-level-close'),
-            onTap: () => Navigator.pop(context),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1369,7 +1368,7 @@ class _LevelDialog extends StatelessWidget {
       colors: _colors[i],
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       sfx: SfxKind.option,
-      onPressed: () => Navigator.pop(context, i),
+      onPressed: () => onPick(i),
       child: Row(
         children: [
           _miniBoard(lv.n),

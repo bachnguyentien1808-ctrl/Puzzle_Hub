@@ -13,11 +13,11 @@ import 'package:puzzle_hub/core/ui/fx.dart';
 import 'package:puzzle_hub/core/ui/game_action_button.dart';
 import 'package:puzzle_hub/core/ui/glass.dart';
 import 'package:puzzle_hub/core/ui/score_chip.dart';
-import 'package:puzzle_hub/features/common/card_close_button.dart';
 import 'package:puzzle_hub/features/common/confirm_new_game.dart';
 import 'package:puzzle_hub/features/common/game_block.dart';
 import 'package:puzzle_hub/features/common/game_overlays.dart';
 import 'package:puzzle_hub/features/common/hub_panels.dart';
+import 'package:puzzle_hub/features/howto/tutorial_gate.dart';
 import 'package:puzzle_hub/games/memory/domain/memory_engine.dart';
 import 'package:puzzle_hub/games/memory/presentation/memory_card_view.dart';
 
@@ -52,6 +52,12 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
   bool _paused = false;
   bool _peeking = false;
   bool _showResult = false;
+
+  /// Đang hiện trang "Chọn kiểu chơi" (thay cho bàn chơi, không đè lên nhau).
+  bool _showSetup = false;
+
+  /// Trang chọn mở ngay khi vào game: bấm × thì về trang chủ.
+  bool _initialSetup = false;
   bool _lost = false;
   bool _newRecord = false;
   int? _points;
@@ -78,9 +84,8 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
       _game = _create(MemorySize.s4x4, MemorySet.icons);
       _intro.forward();
       if (!_isDaily) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _openSetup();
-        });
+        _showSetup = true;
+        _initialSetup = true;
       }
     }
     _clock = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -147,13 +152,23 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
     _save();
   }
 
-  Future<void> _openSetup() async {
-    final r = await showDialog<(MemorySize, MemorySet)>(
-      context: context,
-      barrierColor: Colors.black54,
-      builder: (_) => _SetupSheet(size: _game.size, set: _game.set),
-    );
-    if (r != null && mounted) _startNew(r.$1, r.$2);
+  /// Hiện trang "Chọn kiểu chơi" riêng (như Sudoku) thay cho bàn chơi.
+  void _openSetup() => setState(() => _showSetup = true);
+
+  void _setupStart(MemorySize size, MemorySet set) {
+    _initialSetup = false;
+    TutorialGate.fire(_id);
+    setState(() => _showSetup = false);
+    _startNew(size, set);
+  }
+
+  void _setupClose() {
+    // Vừa vào game mà đóng thì về trang chủ; từ ván đang chơi thì quay lại ván.
+    if (_initialSetup) {
+      context.go(_store.homeRoute);
+    } else {
+      setState(() => _showSetup = false);
+    }
   }
 
   Future<void> _restart() async {
@@ -266,6 +281,14 @@ class _MemoryScreenState extends ConsumerState<MemoryScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_showSetup) {
+      return _SetupSheet(
+        size: _game.size,
+        set: _game.set,
+        onStart: _setupStart,
+        onClose: _setupClose,
+      );
+    }
     final s = Theme.of(context).colorScheme;
     final best = _store.stats(_game.size.statsId).best;
     return Scaffold(
@@ -525,10 +548,17 @@ class _Stat extends StatelessWidget {
 }
 
 class _SetupSheet extends StatefulWidget {
-  const _SetupSheet({required this.size, required this.set});
+  const _SetupSheet({
+    required this.size,
+    required this.set,
+    required this.onStart,
+    required this.onClose,
+  });
 
   final MemorySize size;
   final MemorySet set;
+  final void Function(MemorySize size, MemorySet set) onStart;
+  final VoidCallback onClose;
 
   @override
   State<_SetupSheet> createState() => _SetupSheetState();
@@ -542,22 +572,16 @@ class _SetupSheetState extends State<_SetupSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final reduce = MediaQuery.disableAnimationsOf(context);
-    return Dialog(
+    // Một trang riêng như Sudoku: khối kính giữa nền game, nút × ở góc. Nền
+    // game do GameIntro bọc sẵn bên ngoài.
+    return Scaffold(
       backgroundColor: Colors.transparent,
-      elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      child: Center(
-        child: SingleChildScrollView(
+      body: Center(
+        child: PickerScroll(
+          padding: PickerFrame.outer(context),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: TweenAnimationBuilder<double>(
-              tween: Tween(begin: reduce ? 1 : 0.9, end: 1),
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutBack,
-              builder: (_, v, child) => Transform.scale(scale: v, child: child),
-              child: _card(context),
-            ),
+            constraints: PickerFrame.box(context, 580),
+            child: _card(context),
           ),
         ),
       ),
@@ -565,44 +589,35 @@ class _SetupSheetState extends State<_SetupSheet> {
   }
 
   Widget _card(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.topCenter,
-      children: [
-        Container(
-          margin: const EdgeInsets.only(top: 38),
-          padding: const EdgeInsets.fromLTRB(18, 50, 18, 18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFFFFF6E3), Candy.cream],
-            ),
-            border: Border.all(color: Candy.bgTop, width: 4),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x88000000),
-                offset: Offset(0, 10),
-                blurRadius: 22,
-              ),
-              BoxShadow(color: Colors.white30, spreadRadius: 5),
-            ],
-          ),
-          child: Column(
+    return GlassPanel(
+      radius: PickerFrame.radius(context),
+      padding: PickerFrame.inner(
+        context,
+        const EdgeInsets.fromLTRB(26, 28, 26, 24),
+      ),
+      child: Stack(
+        children: [
+          Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Chọn kiểu chơi',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: _ink,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w900,
+              const Center(
+                child: CandyButton(
+                  onPressed: null,
+                  colors: Candy.orange,
+                  circle: true,
+                  padding: EdgeInsets.all(16),
+                  child: Icon(Icons.style_rounded, size: 52),
                 ),
               ),
               const SizedBox(height: 14),
+              const Center(
+                child: CandyRibbon(
+                  text: 'Chọn kiểu chơi',
+                  colors: Candy.orange,
+                ),
+              ),
+              const SizedBox(height: 18),
               const _SetupLabel('Kích thước', Icons.grid_view_rounded),
               const SizedBox(height: 8),
               GridView.count(
@@ -631,7 +646,7 @@ class _SetupSheetState extends State<_SetupSheet> {
                 key: const ValueKey('memory-start'),
                 colors: Candy.green,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                onPressed: () => Navigator.pop(context, (_size, _set)),
+                onPressed: () => widget.onStart(_size, _set),
                 child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
@@ -644,37 +659,16 @@ class _SetupSheetState extends State<_SetupSheet> {
               ),
             ],
           ),
-        ),
-        Container(
-          width: 76,
-          height: 76,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: Candy.orange,
+          Positioned(
+            top: 0,
+            right: 0,
+            child: GlassCloseButton(
+              key: const ValueKey('memory-setup-close'),
+              onTap: widget.onClose,
             ),
-            border: Border.all(color: Colors.white, width: 4),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x66000000),
-                offset: Offset(0, 5),
-                blurRadius: 10,
-              ),
-            ],
           ),
-          child: const Icon(Icons.style_rounded, size: 40, color: Colors.white),
-        ),
-        Positioned(
-          top: 46,
-          right: 8,
-          child: CardCloseButton(
-            key: const ValueKey('memory-setup-close'),
-            onTap: () => Navigator.pop(context),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -904,9 +898,10 @@ class _SetupLabel extends StatelessWidget {
         Text(
           text,
           style: const TextStyle(
-            color: Candy.brown,
+            color: Colors.white,
             fontSize: 16,
             fontWeight: FontWeight.w900,
+            shadows: [Shadow(color: Color(0x99000000), blurRadius: 3)],
           ),
         ),
       ],

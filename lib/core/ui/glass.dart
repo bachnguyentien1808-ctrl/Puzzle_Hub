@@ -65,14 +65,47 @@ class GlassStyle {
   };
 
   /// Theo buoi cua app; neu chua co (vd. test) thi theo do sang cua theme.
+  /// Trong game co mau rieng ([GameTint]) thi kinh ngả theo mau do.
   static GlassStyle of(BuildContext context) {
     final p =
         BackdropPhaseScope.maybeOf(context) ??
         (Theme.of(context).brightness == Brightness.light
             ? DayPhase.day
             : DayPhase.night);
-    return forPhase(p);
+    final base = forPhase(p);
+    final tint = GameTint.maybeOf(context);
+    return tint == null ? base : base.tinted(tint);
   }
+
+  /// Pha mau cua game vao kinh: vien, nen ban choi va bang dieu khien cung
+  /// mot tong voi man vao game.
+  GlassStyle tinted(Color t) {
+    Color mix(Color c, Color to, double k) =>
+        Color.lerp(c, to.withValues(alpha: c.a), k)!;
+    final hsl = HSLColor.fromColor(t);
+    final deep = hsl.withLightness(.2).withSaturation(.7).toColor();
+    return GlassStyle(
+      outer: mix(outer, t, .5),
+      outerBorder: mix(outerBorder, t, .35),
+      inner: mix(inner, deep, .7),
+      pill: pill,
+      pillText: pillText,
+      panel: mix(panel, deep, .6),
+    );
+  }
+}
+
+/// Mau chu dao cua game dang choi: [GlassStyle.of] pha mau nay vao kinh.
+class GameTint extends InheritedWidget {
+  const GameTint({required this.color, required super.child, super.key});
+
+  final Color color;
+
+  static Color? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<GameTint>()?.color;
+
+  @override
+  bool updateShouldNotify(GameTint old) => old.color != color;
 }
 
 /// Bang kinh mo (vien trang mo, nen trong, lam mo phia sau).
@@ -253,5 +286,26 @@ class _GlassCloseButtonState extends State<GlassCloseButton> {
         ),
       ),
     );
+  }
+}
+
+/// Trang chọn (độ khó, kích thước, kiểu chơi...): máy tính là khối kính nổi giữa
+/// màn hình; điện thoại (< 600) thì phủ kín toàn màn hình, tránh tai thỏ.
+abstract final class PickerFrame {
+  static bool mobile(BuildContext c) => MediaQuery.sizeOf(c).width < 600;
+
+  static EdgeInsets outer(BuildContext c) =>
+      mobile(c) ? EdgeInsets.zero : const EdgeInsets.all(16);
+
+  static BoxConstraints box(BuildContext c, double maxWidth) => mobile(c)
+      ? BoxConstraints(minHeight: MediaQuery.sizeOf(c).height)
+      : BoxConstraints(maxWidth: maxWidth);
+
+  static double radius(BuildContext c) => mobile(c) ? 0 : 30;
+
+  static EdgeInsets inner(BuildContext c, EdgeInsets p) {
+    if (!mobile(c)) return p;
+    final m = MediaQuery.paddingOf(c);
+    return p.copyWith(top: p.top + m.top, bottom: p.bottom + m.bottom);
   }
 }

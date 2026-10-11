@@ -124,40 +124,4 @@ void main() {
     ); // huy hieu con 2 lan
     await tester.pumpWidget(const SizedBox());
   });
-
-  testWidgets('tuy chon: doi sang che do Anh va kich thuoc 3x3', (
-    tester,
-  ) async {
-    await _open(tester, await _prefs());
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('start4'))); // màn chọn ván mới
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.tap(find.byTooltip('Tuỳ chọn'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Ảnh'));
-    await tester.pumpAndSettle();
-    expect(find.text('Hiện số trên ô'), findsOneWidget);
-    await tester.tap(find.text('3x3'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('confirm-yes')));
-    await tester.pumpAndSettle();
-    expect(find.text('Xếp số 3x3'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 3));
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('thu thach ngay: cung de, an chon kich thuoc', (tester) async {
-    final prefs = await _prefs();
-    await _open(tester, prefs, daily: '20261004');
-    await tester.pump(const Duration(seconds: 3));
-    expect(find.textContaining('Hôm nay'), findsOneWidget);
-    await tester.tap(find.byTooltip('Tuỳ chọn'));
-    await tester.pumpAndSettle();
-    expect(find.text('Kích thước'), findsNothing);
-    expect(find.text('Chế độ'), findsOneWidget);
-    await tester.tapAt(const Offset(10, 10));
-    await tester.pumpAndSettle();
-    await tester.pumpWidget(const SizedBox());
-  });
 }

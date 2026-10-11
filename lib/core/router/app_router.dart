@@ -5,6 +5,7 @@ import 'package:puzzle_hub/features/common/game_overlays.dart';
 import 'package:puzzle_hub/features/daily/daily_screen.dart';
 import 'package:puzzle_hub/features/demo/result_demo_screen.dart';
 import 'package:puzzle_hub/features/home/home_screen.dart';
+import 'package:puzzle_hub/features/howto/guide_screen.dart';
 import 'package:puzzle_hub/features/howto/tutorial_sheet.dart';
 import 'package:puzzle_hub/features/settings/settings_screen.dart';
 import 'package:puzzle_hub/features/stats/stats_screen.dart';
@@ -38,8 +39,21 @@ final appRouter = GoRouter(
   routes: [
     _route('/', (_) => const HomeScreen()),
     _route('/settings', (_) => const SettingsScreen()),
-    _route('/achievements', (_) => const AchievementsScreen()),
-    _route('/stats', (_) => const StatsScreen()),
+    GoRoute(
+      path: '/achievements',
+      pageBuilder: (ctx, state) => fadeSlidePage(
+        state,
+        AchievementsScreen(gameId: state.uri.queryParameters['game']),
+      ),
+    ),
+    GoRoute(
+      path: '/stats',
+      pageBuilder: (ctx, state) => fadeSlidePage(
+        state,
+        StatsScreen(gameId: state.uri.queryParameters['game']),
+      ),
+    ),
+    _route('/guide', (_) => const GuideScreen()),
     _route('/demo-ket-qua', (_) => const ResultDemoScreen()),
     _route('/daily', (_) => const DailyScreen()),
     _route('/daily/play', (_) => const DailyPlayScreen()),
